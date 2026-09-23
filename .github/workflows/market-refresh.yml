@@ -18,7 +18,7 @@ jobs:
             echo "XLAUNCH_MARKET_WORKER_SECRET is not configured; skipping."
             exit 0
           fi
-          BASE="${SITE_URL:-https://xlaunch.it}"
+          BASE="${SITE_URL:-https://launchonx.net}"
           curl --fail --silent --show-error \
             --retry 2 \
             -H "Authorization: Bearer $WORKER_SECRET" \
