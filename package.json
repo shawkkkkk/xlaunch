@@ -25,7 +25,12 @@
     "bs58": "^6.0.0",
     "@wallet-standard/app": "^1.1.1",
     "@solana/wallet-standard": "^1.1.7",
-    "@vercel/blob": "^2.8.0"
+    "@vercel/blob": "^2.8.0",
+    "@privy-io/react-auth": "3.45.0",
+    "@solana/kit": "8.3.0",
+    "@solana-program/memo": "0.14.1",
+    "@solana-program/system": "0.14.1",
+    "@solana-program/token": "0.17.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
