@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSocialCommand } from "@/lib/db";
+import { getSocialCommand, upsertProfile } from "@/lib/db";
 import {
   oauthConfig,
   openPayload,
@@ -9,17 +9,23 @@ import {
 export const runtime = "nodejs";
 
 type OAuthCookie = {
-  commandPostId: string;
+  commandPostId?: string;
+  returnTo?: string;
   state: string;
   verifier: string;
 };
 
+function safeReturnTo(value?: string) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/profile";
+  return value.slice(0, 500);
+}
+
 export async function GET(request: NextRequest) {
   const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://xlaunch.it").replace(/\/$/, "");
-  const fail = (message: string) => {
-    const url = new URL("/?xAuthError=" + encodeURIComponent(message), origin);
-    return NextResponse.redirect(url);
-  };
+  const fail = (message: string) =>
+    NextResponse.redirect(
+      new URL("/?xAuthError=" + encodeURIComponent(message), origin),
+    );
 
   try {
     const code = request.nextUrl.searchParams.get("code") || "";
@@ -31,8 +37,11 @@ export async function GET(request: NextRequest) {
       return fail("X sign-in session is invalid or expired.");
     }
 
-    const command = await getSocialCommand(flow.commandPostId) as any;
-    if (!command) return fail("X launch command no longer exists.");
+    let command: any = null;
+    if (flow.commandPostId) {
+      command = await getSocialCommand(flow.commandPostId);
+      if (!command) return fail("X launch command no longer exists.");
+    }
 
     const { clientId, clientSecret, callbackUrl } = oauthConfig();
     const form = new URLSearchParams({
@@ -62,7 +71,9 @@ export async function GET(request: NextRequest) {
       return fail("X did not complete authorization.");
     }
 
-    const meResponse = await fetch("https://api.x.com/2/users/me", {
+    const meUrl = new URL("https://api.x.com/2/users/me");
+    meUrl.searchParams.set("user.fields", "name,username,profile_image_url");
+    const meResponse = await fetch(meUrl, {
       headers: { authorization: `Bearer ${tokenBody.access_token}` },
       cache: "no-store",
     });
@@ -71,15 +82,24 @@ export async function GET(request: NextRequest) {
       return fail("XLaunch could not verify the signed-in X account.");
     }
 
-    if (String(me.data.id) !== String(command.x_user_id)) {
+    if (command && String(me.data.id) !== String(command.x_user_id)) {
       return fail(
         `Sign in as @${command.author_handle}, the X account that wrote the launch command.`,
       );
     }
 
-    const response = NextResponse.redirect(
-      new URL(`/social/confirm/${flow.commandPostId}`, origin),
-    );
+    await upsertProfile({
+      xUserId: String(me.data.id),
+      xHandle: String(me.data.username),
+      displayName: String(me.data.name || ""),
+      avatarUrl: String(me.data.profile_image_url || ""),
+    });
+
+    const destination = command
+      ? `/social/confirm/${flow.commandPostId}`
+      : safeReturnTo(flow.returnTo);
+
+    const response = NextResponse.redirect(new URL(destination, origin));
     response.cookies.delete("xlaunch_x_oauth");
     response.cookies.set(
       "xlaunch_x_session",
@@ -87,15 +107,17 @@ export async function GET(request: NextRequest) {
         {
           xUserId: String(me.data.id),
           handle: String(me.data.username),
+          displayName: String(me.data.name || ""),
+          avatarUrl: String(me.data.profile_image_url || ""),
         },
-        60 * 60 * 1000,
+        24 * 60 * 60 * 1000,
       ),
       {
         httpOnly: true,
         secure: true,
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 60,
+        maxAge: 24 * 60 * 60,
       },
     );
     return response;
