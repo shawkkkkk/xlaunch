@@ -124,3 +124,28 @@ CREATE TABLE IF NOT EXISTS xlaunch_wallet_activity (
 
 CREATE INDEX IF NOT EXISTS xlaunch_wallet_activity_user_idx
   ON xlaunch_wallet_activity(x_user_id, created_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS xlaunch_market_snapshots (
+  post_id TEXT PRIMARY KEY REFERENCES xlaunch_posts(post_id) ON DELETE CASCADE,
+  price_usd NUMERIC(38, 18),
+  market_cap_usd NUMERIC(30, 6),
+  volume_24h_usd NUMERIC(30, 6),
+  liquidity_usd NUMERIC(30, 6),
+  price_change_24h_pct NUMERIC(18, 6),
+  trades_24h BIGINT,
+  holders BIGINT,
+  venue_rank_score NUMERIC(30, 10),
+  source TEXT,
+  source_updated_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS xlaunch_market_cap_idx
+  ON xlaunch_market_snapshots(market_cap_usd DESC NULLS LAST);
+
+CREATE INDEX IF NOT EXISTS xlaunch_volume_24h_idx
+  ON xlaunch_market_snapshots(volume_24h_usd DESC NULLS LAST);
+
+CREATE INDEX IF NOT EXISTS xlaunch_market_updated_idx
+  ON xlaunch_market_snapshots(updated_at DESC);
