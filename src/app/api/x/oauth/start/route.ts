@@ -9,13 +9,23 @@ import {
 
 export const runtime = "nodejs";
 
+function safeReturnTo(value: string | null) {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/profile";
+  return value.slice(0, 500);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const commandPostId = request.nextUrl.searchParams.get("command") || "";
-    if (!/^\d+$/.test(commandPostId)) throw new Error("Invalid X launch command.");
+    const returnTo = safeReturnTo(request.nextUrl.searchParams.get("returnTo"));
 
-    const command = await getSocialCommand(commandPostId);
-    if (!command) return NextResponse.json({ error: "Unknown X launch command." }, { status: 404 });
+    if (commandPostId) {
+      if (!/^\d+$/.test(commandPostId)) throw new Error("Invalid X launch command.");
+      const command = await getSocialCommand(commandPostId);
+      if (!command) {
+        return NextResponse.json({ error: "Unknown X launch command." }, { status: 404 });
+      }
+    }
 
     const { clientId, callbackUrl } = oauthConfig();
     const { verifier, challenge } = createPkce();
@@ -33,7 +43,7 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.redirect(authUrl);
     response.cookies.set(
       "xlaunch_x_oauth",
-      sealPayload({ commandPostId, state, verifier }, 10 * 60 * 1000),
+      sealPayload({ commandPostId, returnTo, state, verifier }, 10 * 60 * 1000),
       {
         httpOnly: true,
         secure: true,
