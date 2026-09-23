@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { connectRobinhoodWallet, launchOnPons } from "@/lib/pons-browser";
+import { connectSolanaWallet, launchOnPump } from "@/lib/pump-browser";
+import { launchOnStonkFun } from "@/lib/stonkfun-browser";
 
 type Registry = {
   status: "reserved" | "live";
@@ -60,6 +63,7 @@ type PonsCaps = {
     curveFeeBps: number;
     enabled: boolean;
     supply: string;
+    phantomQuote: string;
     graduationThreshold: string;
   }>;
 };
@@ -102,7 +106,6 @@ export default function XLaunchApp() {
   const [ponsPairState, setPonsPairState] = useState<any>(null);
   const [creatorTax, setCreatorTax] = useState(0);
   const [buyback, setBuyback] = useState(false);
-  const [feeRecipient, setFeeRecipient] = useState("");
   const [devBuy, setDevBuy] = useState("0");
   const [buyRecipient, setBuyRecipient] = useState("");
   const [exemptions, setExemptions] = useState("");
@@ -120,6 +123,9 @@ export default function XLaunchApp() {
 
   const [advanced, setAdvanced] = useState(false);
   const [status, setStatus] = useState("");
+  const [launching, setLaunching] = useState(false);
+  const [solWallet, setSolWallet] = useState("");
+  const [evmWallet, setEvmWallet] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -209,12 +215,242 @@ export default function XLaunchApp() {
     [stonkPair, stonkPairs],
   );
 
+  const selectedPumpQuote = useMemo(
+    () => pump?.quotes.find((quote) => quote.mint === pumpQuote),
+    [pump, pumpQuote],
+  );
+
+  const activeWallet = venue === "pons" ? evmWallet : solWallet;
+
+  async function connectCurrentWallet() {
+    try {
+      setStatus("Connecting wallet…");
+      if (venue === "pons") {
+        const account = await connectRobinhoodWallet();
+        setEvmWallet(account);
+        setStatus("Robinhood Chain wallet connected.");
+      } else {
+        const account = await connectSolanaWallet();
+        setSolWallet(account.toBase58());
+        setStatus("Solana wallet connected.");
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Wallet connection failed.");
+    }
+  }
+
+  async function reserveLaunch(wallet: string) {
+    if (!resolved) throw new Error("Resolve an X post first.");
+
+    const launchConfig =
+      venue === "stonkfun"
+        ? { quoteMint: stonkPair, mode: stonkMode, rewardBps }
+        : venue === "pumpfun"
+          ? {
+              quoteMint: pumpQuote,
+              quoteSource: selectedPumpQuote?.source || "",
+              mayhemMode: pumpMayhem,
+              holderReward: pumpHolderReward,
+              creatorFeeBps: pumpCreatorFeeBps,
+            }
+          : {
+              pairToken: ponsPair,
+              launchConfigId: ponsConfig,
+              creatorTaxBps: creatorTax,
+              buybackEnabled: buyback,
+            };
+
+    const response = await fetch("/api/registry/reserve", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        postId: resolved.post.id,
+        postUrl: sourceX,
+        venue,
+        wallet,
+        name,
+        symbol,
+        description,
+        image,
+        website,
+        telegram,
+        discord,
+        farcaster,
+        feeRoute,
+        customFeeWallet,
+        authorHandle: resolved.post.handle,
+        stonkMode,
+        pumpHolderReward,
+        launchConfig,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Could not reserve this X post.");
+    return data as {
+      metadata: {
+        name: string;
+        symbol: string;
+        description: string;
+        image: string;
+        socials: {
+          twitter: string;
+          telegram: string;
+          discord: string;
+          website: string;
+          farcaster: string;
+        };
+      };
+      feeDestination: {
+        route: string;
+        recipientHandle: string | null;
+        recipientWallet: string | null;
+      };
+    };
+  }
+
+  async function confirmLaunch(result: {
+    wallet: string;
+    txHash: string;
+    tokenAddress: string;
+  }) {
+    if (!resolved) throw new Error("Missing X post.");
+
+    const response = await fetch(
+      venue === "pons" ? "/api/registry/confirm" : "/api/registry/confirm-solana",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          postId: resolved.post.id,
+          wallet: result.wallet,
+          txHash: result.txHash,
+          tokenAddress: result.tokenAddress,
+        }),
+      },
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+          "The token launched, but XLaunch could not verify the canonical assignment.",
+      );
+    }
+    return data;
+  }
+
+  async function launch() {
+    if (!resolved) return;
+    if (!resolved.registryConfigured) {
+      setStatus("Canonical registry database is not connected yet.");
+      return;
+    }
+    if (alreadyLive) {
+      window.location.href = `/post/${resolved.post.id}`;
+      return;
+    }
+    if (!name.trim() || !symbol.trim()) {
+      setStatus("Token name and ticker are required.");
+      return;
+    }
+
+    setLaunching(true);
+    try {
+      let wallet = activeWallet;
+      if (!wallet) {
+        if (venue === "pons") {
+          wallet = await connectRobinhoodWallet();
+          setEvmWallet(wallet);
+        } else {
+          const account = await connectSolanaWallet();
+          wallet = account.toBase58();
+          setSolWallet(wallet);
+        }
+      }
+
+      setStatus("Reserving this X post across all XLaunch venues…");
+      const reservation = await reserveLaunch(wallet);
+      setStatus(
+        `Reserved. Review and sign the ${venue === "pons" ? "Robinhood Chain" : "Solana"} transaction in your wallet…`,
+      );
+
+      let result: { wallet: string; txHash: string; tokenAddress: string };
+
+      if (venue === "pons") {
+        const config = pons?.configs.find(
+          (item) => item.id === ponsConfig && item.enabled,
+        );
+        if (!config) {
+          throw new Error("The selected Pons launch configuration is no longer enabled.");
+        }
+
+        result = await launchOnPons({
+          metadata: reservation.metadata,
+          launchConfig: config,
+          pairToken: ponsPair,
+          creatorTaxBps: creatorTax,
+          buybackEnabled: buyback,
+          creatorFeeRecipient: reservation.feeDestination.recipientWallet || wallet,
+          openingBuy: devBuy,
+          openingBuyRecipient: buyRecipient,
+          exemptions,
+          salt,
+        });
+      } else if (venue === "pumpfun") {
+        if (!selectedPumpQuote) throw new Error("Select a live Pump.fun quote asset.");
+        result = await launchOnPump({
+          postId: resolved.post.id,
+          metadata: {
+            name: reservation.metadata.name,
+            symbol: reservation.metadata.symbol,
+          },
+          quoteMint: pumpQuote,
+          quoteSource: selectedPumpQuote.source,
+          openingBuy: pumpOpeningBuy,
+          mayhemMode: pumpMayhem,
+          holderReward: pumpHolderReward,
+          creatorFeeBps:
+            selectedPumpQuote.source === "quoteControl" ? pumpCreatorFeeBps : 0,
+          feeRecipientWallet: reservation.feeDestination.recipientWallet,
+        });
+      } else {
+        if (!selectedPair?.mint) throw new Error("Select a live StonkFun pair.");
+        result = await launchOnStonkFun({
+          postId: resolved.post.id,
+          name: reservation.metadata.name,
+          symbol: reservation.metadata.symbol,
+          quoteMint: stonkPair,
+          quoteTokenProgram: selectedPair.tokenProgram,
+          mode: stonkMode,
+          rewardBps,
+          feeRecipientWallet: reservation.feeDestination.recipientWallet,
+          openingBuy: stonkDevBuy,
+        });
+      }
+
+      setStatus("Onchain transaction confirmed. Verifying the canonical assignment…");
+      await confirmLaunch(result);
+      setStatus("Launch verified. This X post is now permanently assigned in XLaunch.");
+      window.location.href = `/post/${resolved.post.id}`;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Launch failed.");
+    } finally {
+      setLaunching(false);
+    }
+  }
+
   return (
     <main>
       <nav>
         <a className="logo" href="/">XLAUNCH</a>
         <div className="navRule">ONE POST · ONE TOKEN · ONE CHAIN · FOREVER</div>
-        <button className="wallet" type="button">CONNECT</button>
+        <button className="wallet" type="button" onClick={connectCurrentWallet}>
+          {activeWallet
+            ? `${activeWallet.slice(0, 5)}…${activeWallet.slice(-4)}`
+            : venue === "pons"
+              ? "CONNECT EVM"
+              : "CONNECT SOL"}
+        </button>
       </nav>
 
       <section className="hero">
@@ -540,7 +776,8 @@ export default function XLaunchApp() {
                     type="number"
                     min="0"
                     step="1"
-                    value={pumpCreatorFeeBps}
+                    disabled={selectedPumpQuote?.source !== "quoteControl"}
+                    value={selectedPumpQuote?.source === "quoteControl" ? pumpCreatorFeeBps : 0}
                     onChange={(event) => setPumpCreatorFeeBps(Math.max(0, Number(event.target.value) || 0))}
                   />
                   <small>
@@ -648,15 +885,6 @@ export default function XLaunchApp() {
                 {venue === "pons" && (
                   <>
                     <label>
-                      <span>CREATOR FEE RECIPIENT</span>
-                      <input
-                        value={feeRecipient}
-                        onChange={(event) => setFeeRecipient(event.target.value)}
-                        placeholder="Connected wallet by default"
-                      />
-                    </label>
-
-                    <label>
                       <span>OPENING BUY RECIPIENT</span>
                       <input
                         value={buyRecipient}
@@ -708,16 +936,14 @@ export default function XLaunchApp() {
             <button
               className="launch"
               type="button"
-              disabled={alreadyLive}
-              onClick={() =>
-                setStatus(
-                  resolved.registryConfigured
-                    ? "Configuration valid. Wallet-signing transaction builder is next."
-                    : "Preview ready. Registry database must be connected before canonical launching is enabled.",
-                )
-              }
+              disabled={alreadyLive || launching}
+              onClick={launch}
             >
-              {alreadyLive ? "POST ALREADY TOKENIZED" : "REVIEW & LAUNCH →"}
+              {alreadyLive
+                ? "POST ALREADY TOKENIZED"
+                : launching
+                  ? "LAUNCHING…"
+                  : "REVIEW & LAUNCH →"}
             </button>
 
             {status && <div className="status">{status}</div>}
