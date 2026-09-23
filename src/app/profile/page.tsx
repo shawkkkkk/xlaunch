@@ -8,6 +8,7 @@ import {
 } from "@/lib/db";
 import { readXSession } from "@/lib/x-oauth";
 import ProfileClient from "@/components/ProfileClient";
+import PrivyProfileProvider from "@/components/PrivyProfileProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -56,13 +57,25 @@ export default async function ProfilePage() {
         <div className="navRule">PROFILE / @{profile.x_handle}</div>
         <div className="navActions"><a className="profileLink" href="/explore">EXPLORE</a><a className="profileLink" href="/docs">DOCS</a><a className="wallet tokenBack" href="/">LAUNCH</a></div>
       </nav>
-      <ProfileClient
-        profile={profile}
-        tokens={tokens as any[]}
-        fees={fees as any[]}
-        activity={activity as any[]}
-        walletProviderConfigured={Boolean(process.env.NEXT_PUBLIC_PRIVY_APP_ID)}
-      />
+      {process.env.NEXT_PUBLIC_PRIVY_APP_ID ? (
+        <PrivyProfileProvider appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID}>
+          <ProfileClient
+            profile={profile}
+            tokens={tokens as any[]}
+            fees={fees as any[]}
+            activity={activity as any[]}
+            walletProviderConfigured
+          />
+        </PrivyProfileProvider>
+      ) : (
+        <ProfileClient
+          profile={profile}
+          tokens={tokens as any[]}
+          fees={fees as any[]}
+          activity={activity as any[]}
+          walletProviderConfigured={false}
+        />
+      )}
     </main>
   );
 }
