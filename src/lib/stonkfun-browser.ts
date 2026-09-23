@@ -6,16 +6,26 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SystemProgram,
   Transaction,
 } from "@solana/web3.js";
 import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  createCloseAccountInstruction,
+  createSyncNativeInstruction,
+  getAssociatedTokenAddressSync,
+  getMint,
+  NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
+  buyExactInInstruction,
+  getPdaCreatorVault,
   getPdaLaunchpadAuth,
   getPdaLaunchpadPoolId,
   getPdaLaunchpadVaultId,
+  getPdaPlatformVault,
   initializeWithToken2022,
 } from "@raydium-io/raydium-sdk-v2";
 import { connectSolanaWallet } from "@/lib/pump-browser";
@@ -61,6 +71,23 @@ async function stonkGet(path: string) {
   return data;
 }
 
+function parseDecimalAmount(value: string, decimals: number) {
+  const trimmed = value.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    throw new Error("Opening buy must be a non-negative decimal amount.");
+  }
+  const [whole, fraction = ""] = trimmed.split(".");
+  if (fraction.length > decimals) {
+    throw new Error(
+      `Opening buy supports at most ${decimals} decimal places for this quote asset.`,
+    );
+  }
+  const raw =
+    whole.replace(/^0+(?=\d)/, "") +
+    fraction.padEnd(decimals, "0");
+  return new BN(raw.replace(/^0+/, "") || "0");
+}
+
 export type StonkFunLaunchInput = {
   postId: string;
   name: string;
@@ -74,12 +101,6 @@ export type StonkFunLaunchInput = {
 };
 
 export async function launchOnStonkFun(input: StonkFunLaunchInput) {
-  if (Number(input.openingBuy || "0") > 0) {
-    throw new Error(
-      "Atomic StonkFun opening buys are not enabled in XLaunch yet. Set the opening buy to 0 for this launch.",
-    );
-  }
-
   const wallet = provider();
   const payer = await connectSolanaWallet();
   const quoteMint = new PublicKey(input.quoteMint);
@@ -108,29 +129,33 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
   const platformId = new PublicKey(
     taxBps ? pricing.platform.reward : pricing.platform.standard,
   );
+  const configId = new PublicKey(pricing.curve.configId);
+  const auth = getPdaLaunchpadAuth(programId).publicKey;
   const { publicKey: poolId } = getPdaLaunchpadPoolId(
     programId,
     mint,
     quoteMint,
   );
+  const vaultA = getPdaLaunchpadVaultId(programId, poolId, mint).publicKey;
+  const vaultB = getPdaLaunchpadVaultId(programId, poolId, quoteMint).publicKey;
 
   const quoteTokenProgram =
     input.quoteTokenProgram === TOKEN_2022_PROGRAM_ID.toBase58()
       ? TOKEN_2022_PROGRAM_ID
       : TOKEN_PROGRAM_ID;
 
-  const instruction = initializeWithToken2022(
+  const initialize = initializeWithToken2022(
     programId,
     payer,
     creator,
-    new PublicKey(pricing.curve.configId),
+    configId,
     platformId,
-    getPdaLaunchpadAuth(programId).publicKey,
+    auth,
     poolId,
     mint,
     quoteMint,
-    getPdaLaunchpadVaultId(programId, poolId, mint).publicKey,
-    getPdaLaunchpadVaultId(programId, poolId, quoteMint).publicKey,
+    vaultA,
+    vaultB,
     quoteTokenProgram,
     Number(pricing.curve.baseDecimals),
     input.name,
@@ -160,13 +185,125 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
   );
 
   const connection = new Connection(rpcUrl(), "confirmed");
+  const transaction = new Transaction().add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 1_000_000 }),
+    initialize,
+  );
+
+  const openingText = (input.openingBuy || "0").trim() || "0";
+  const wantsOpeningBuy = Number(openingText) > 0;
+
+  if (wantsOpeningBuy) {
+    const quoteMintInfo = await getMint(
+      connection,
+      quoteMint,
+      "confirmed",
+      quoteTokenProgram,
+    );
+    const amountB = parseDecimalAmount(openingText, quoteMintInfo.decimals);
+    if (amountB.lte(new BN(0))) {
+      throw new Error("Opening buy must be greater than zero.");
+    }
+
+    const raiseRaw = new BN(pricing.raise.raw);
+    if (amountB.gte(raiseRaw)) {
+      throw new Error(
+        "Opening buy must stay below the current StonkFun graduation raise.",
+      );
+    }
+
+    const userTokenA = getAssociatedTokenAddressSync(
+      mint,
+      payer,
+      false,
+      TOKEN_2022_PROGRAM_ID,
+    );
+    const userTokenB = getAssociatedTokenAddressSync(
+      quoteMint,
+      payer,
+      false,
+      quoteTokenProgram,
+    );
+
+    const quoteAccountBefore = quoteMint.equals(NATIVE_MINT)
+      ? await connection.getAccountInfo(userTokenB, "confirmed")
+      : null;
+
+    transaction.add(
+      createAssociatedTokenAccountIdempotentInstruction(
+        payer,
+        userTokenA,
+        payer,
+        mint,
+        TOKEN_2022_PROGRAM_ID,
+      ),
+      createAssociatedTokenAccountIdempotentInstruction(
+        payer,
+        userTokenB,
+        payer,
+        quoteMint,
+        quoteTokenProgram,
+      ),
+    );
+
+    if (quoteMint.equals(NATIVE_MINT)) {
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: payer,
+          toPubkey: userTokenB,
+          lamports: BigInt(amountB.toString()),
+        }),
+        createSyncNativeInstruction(userTokenB, TOKEN_PROGRAM_ID),
+      );
+    }
+
+    transaction.add(
+      buyExactInInstruction(
+        programId,
+        payer,
+        auth,
+        configId,
+        platformId,
+        poolId,
+        userTokenA,
+        userTokenB,
+        vaultA,
+        vaultB,
+        mint,
+        quoteMint,
+        TOKEN_2022_PROGRAM_ID,
+        quoteTokenProgram,
+        getPdaPlatformVault(programId, platformId, quoteMint).publicKey,
+        getPdaCreatorVault(programId, creator, quoteMint).publicKey,
+        amountB,
+        // Create + buy is atomic and no external trade can occur between the
+        // two instructions. Keep the program minimum at zero rather than
+        // relying on a stale client-side quote for a pool that does not exist yet.
+        new BN(0),
+        new BN(0),
+      ),
+    );
+
+    // If XLaunch created the wrapped-SOL ATA solely for this atomic buy,
+    // close it afterward and return any dust/rent to the launcher. Never close
+    // a pre-existing WSOL account owned by the user.
+    if (quoteMint.equals(NATIVE_MINT) && !quoteAccountBefore) {
+      transaction.add(
+        createCloseAccountInstruction(
+          userTokenB,
+          payer,
+          payer,
+          [],
+          TOKEN_PROGRAM_ID,
+        ),
+      );
+    }
+  }
+
   const latest = await connection.getLatestBlockhash("confirmed");
-  const transaction = new Transaction({
-    feePayer: payer,
-    recentBlockhash: latest.blockhash,
-  })
-    .add(ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }))
-    .add(instruction);
+  transaction.feePayer = payer;
+  transaction.recentBlockhash = latest.blockhash;
+  transaction.lastValidBlockHeight = latest.lastValidBlockHeight;
 
   transaction.partialSign(mintKeypair);
   const signed = await wallet.signTransaction(transaction);
