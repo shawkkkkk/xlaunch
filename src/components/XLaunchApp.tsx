@@ -333,7 +333,7 @@ export default function XLaunchApp() {
 
     const launchConfig =
       venue === "stonkfun"
-        ? { quoteMint: stonkPair, mode: stonkMode, rewardBps }
+        ? { quoteMint: stonkPair, mode: stonkMode, rewardBps, openingBuy: stonkDevBuy }
         : venue === "pumpfun"
           ? {
               quoteMint: pumpQuote,
