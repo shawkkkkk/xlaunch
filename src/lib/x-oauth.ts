@@ -70,6 +70,8 @@ export function oauthConfig() {
 export type XSession = {
   xUserId: string;
   handle: string;
+  displayName?: string;
+  avatarUrl?: string;
 };
 
 export function readXSession(cookieValue?: string | null) {
