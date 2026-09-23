@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
     if (!process.env.DATABASE_URL) throw new Error("Canonical registry is not configured yet.");
 
     const body = await request.json();
+    const accountSession = readXSession(request.cookies.get("xlaunch_x_session")?.value);
     const venue =
       body.venue === "pons"
         ? "pons"
@@ -56,8 +57,7 @@ export async function POST(request: NextRequest) {
         throw new Error("The X social launch command no longer exists.");
       }
 
-      const session = readXSession(request.cookies.get("xlaunch_x_session")?.value);
-      if (!session || String(session.xUserId) !== String(socialCommand.x_user_id)) {
+      if (!accountSession || String(accountSession.xUserId) !== String(socialCommand.x_user_id)) {
         return NextResponse.json(
           { error: "Sign in with the X account that wrote this launch command." },
           { status: 403 },
@@ -177,6 +177,7 @@ export async function POST(request: NextRequest) {
       venue,
       chain: venue === "pons" ? "robinhood" : "solana",
       wallet,
+      creatorXUserId: accountSession?.xUserId ?? null,
       tokenName: metadata.name,
       tokenSymbol: metadata.symbol,
       metadata: storedMetadata,
