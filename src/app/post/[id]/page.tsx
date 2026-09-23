@@ -33,6 +33,10 @@ export default async function PostTokenPage({
   if (!record) notFound();
 
   const events = await getFeeEvents(id).catch(() => []);
+  const xMoneyPayouts = events.filter(
+    (event: any) => event.event_type === "xmoney_sent",
+  );
+  const lastXMoneyPayout = xMoneyPayouts[0] as any | undefined;
   const metadata = record.metadata as {
     description?: string;
     image?: string;
@@ -83,6 +87,16 @@ export default async function PostTokenPage({
           )}
           {record.fee_recipient_wallet && (
             <div className="feeLine"><span>ONCHAIN RECIPIENT</span><code>{record.fee_recipient_wallet}</code></div>
+          )}
+          {record.fee_route === "author_xmoney" && (
+            <div className="feeLine">
+              <span>X MONEY PAYOUT</span>
+              <b>
+                {lastXMoneyPayout
+                  ? "PAID · " + new Date(lastXMoneyPayout.created_at).toLocaleDateString()
+                  : "NOT YET RECORDED"}
+              </b>
+            </div>
           )}
           <p className="proofNote">
             XLaunch reports the configured fee destination and verification state separately.
