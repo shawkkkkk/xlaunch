@@ -24,7 +24,8 @@
     "tweetnacl": "^1.0.3",
     "bs58": "^6.0.0",
     "@wallet-standard/app": "^1.1.1",
-    "@solana/wallet-standard": "^1.1.7"
+    "@solana/wallet-standard": "^1.1.7",
+    "@vercel/blob": "^2.8.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
