@@ -595,3 +595,16 @@ export async function upsertMarketSnapshot(args: {
   `;
   return rows[0];
 }
+
+
+export async function getLiveTokensForMarketIndex(limit = 60) {
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 100));
+  return sql()`
+    SELECT post_id, venue, chain, token_address, token_symbol
+    FROM xlaunch_posts
+    WHERE status = 'live'
+      AND token_address IS NOT NULL
+    ORDER BY COALESCE(confirmed_at, created_at) DESC
+    LIMIT ${safeLimit}
+  `;
+}
