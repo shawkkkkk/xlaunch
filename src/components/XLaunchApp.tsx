@@ -72,6 +72,14 @@ type DonateCharity = {
   isEnabled: boolean;
 };
 
+type FeatureFlags = {
+  xMoney: { solana: boolean; robinhood: boolean };
+  charity: { pumpfun: boolean };
+  xAuth: boolean;
+  embeddedWallets: boolean;
+  bot: boolean;
+};
+
 type PonsCaps = {
   launchEnabled: boolean;
   launchFeeEth: string;
@@ -155,6 +163,13 @@ export default function XLaunchApp() {
   const [evmWallet, setEvmWallet] = useState("");
   const [socialCommandId, setSocialCommandId] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [features, setFeatures] = useState<FeatureFlags>({
+    xMoney: { solana: false, robinhood: false },
+    charity: { pumpfun: false },
+    xAuth: false,
+    embeddedWallets: false,
+    bot: false,
+  });
   const socialPrefillApplied = useRef(false);
 
   useEffect(() => {
@@ -213,6 +228,13 @@ export default function XLaunchApp() {
   }, []);
 
   useEffect(() => {
+    fetch("/api/features")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.xMoney && data?.charity) setFeatures(data);
+      })
+      .catch(() => {});
+
     Promise.all([
       fetch("/api/venues/stonkfun").then((r) => r.json()),
       fetch("/api/venues/pons").then((r) => r.json()),
@@ -236,11 +258,18 @@ export default function XLaunchApp() {
   }, []);
 
   useEffect(() => {
-    if (venue !== "pumpfun" && feeRoute === "charity") {
+    const xMoneyReady =
+      venue === "pons" ? features.xMoney.robinhood : features.xMoney.solana;
+
+    if (
+      (feeRoute === "charity" &&
+        (venue !== "pumpfun" || !features.charity.pumpfun)) ||
+      (feeRoute === "author_xmoney" && !xMoneyReady)
+    ) {
       setFeeRoute("developer");
-      setSelectedCharity(null);
+      if (feeRoute === "charity") setSelectedCharity(null);
     }
-  }, [venue, feeRoute]);
+  }, [venue, feeRoute, features]);
 
   useEffect(() => {
     if (!stonkPair) return;
@@ -1093,13 +1122,31 @@ export default function XLaunchApp() {
                       )
                     }
                   >
-                    <option value="author_xmoney">
+                    <option
+                      value="author_xmoney"
+                      disabled={
+                        venue === "pons"
+                          ? !features.xMoney.robinhood
+                          : !features.xMoney.solana
+                      }
+                    >
                       Original X author via X Money · @{resolved.post.handle || "author"}
+                      {(venue === "pons"
+                        ? !features.xMoney.robinhood
+                        : !features.xMoney.solana)
+                        ? " · SETUP PENDING"
+                        : ""}
                     </option>
                     <option value="developer">Developer · connected wallet</option>
                     <option value="custom">Custom wallet</option>
                     {venue === "pumpfun" && (
-                      <option value="charity">Charity · Donate.gg</option>
+                      <option
+                        value="charity"
+                        disabled={!features.charity.pumpfun}
+                      >
+                        Charity · Donate.gg
+                        {!features.charity.pumpfun ? " · SETUP PENDING" : ""}
+                      </option>
                     )}
                   </select>
                   <small>
