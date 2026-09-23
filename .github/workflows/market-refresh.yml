@@ -1,0 +1,25 @@
+name: Market Refresh
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh XLaunch market index
+        env:
+          WORKER_SECRET: ${{ secrets.XLAUNCH_MARKET_WORKER_SECRET }}
+          SITE_URL: ${{ vars.XLAUNCH_SITE_URL }}
+        run: |
+          if [ -z "$WORKER_SECRET" ]; then
+            echo "XLAUNCH_MARKET_WORKER_SECRET is not configured; skipping."
+            exit 0
+          fi
+          BASE="${SITE_URL:-https://xlaunch.it}"
+          curl --fail --silent --show-error \
+            --retry 2 \
+            -H "Authorization: Bearer $WORKER_SECRET" \
+            "$BASE/api/market/refresh"
