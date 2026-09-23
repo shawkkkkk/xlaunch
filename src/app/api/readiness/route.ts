@@ -70,7 +70,7 @@ export async function GET() {
     },
     {
       key: "xBot",
-      label: "@launchedonx automation",
+      label: "@launchonx_ automation",
       ready:
         present("X_BOT_USER_ID") &&
         present("X_BOT_ACCESS_TOKEN") &&
@@ -143,7 +143,7 @@ export async function GET() {
     app: "xlaunch",
     status: launchBlocking.length ? "not_ready" : "ready",
     publicLaunchReady: launchBlocking.length === 0,
-    botHandle: process.env.X_BOT_USERNAME || "launchedonx",
+    botHandle: process.env.X_BOT_USERNAME || "launchonx_",
     operatorHandle: process.env.X_AUTOMATION_OPERATOR_HANDLE || "ShayanelH",
     checks,
   });
