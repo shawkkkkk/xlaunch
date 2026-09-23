@@ -158,6 +158,25 @@ export default function XLaunchApp() {
   const socialPrefillApplied = useRef(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    const media = window.matchMedia("(min-width: 901px)");
+    const onResize = () => {
+      if (media.matches) setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    media.addEventListener("change", onResize);
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      media.removeEventListener("change", onResize);
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
     if (socialPrefillApplied.current || typeof window === "undefined") return;
 
     const params = new URLSearchParams(window.location.search);
