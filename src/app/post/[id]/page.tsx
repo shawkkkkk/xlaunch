@@ -137,6 +137,11 @@ export default async function PostTokenPage({
     };
   };
   const donationConfig = metadata.xlaunch?.donationConfig;
+  const storedWebsite = String(metadata.socials?.website || "").trim();
+  const tokenWebsite =
+    !storedWebsite || storedWebsite.replace(/\/$/, "") === "https://launchonx.net"
+      ? `https://launchonx.net/post/${record.post_id}`
+      : storedWebsite;
 
   return (
     <main className="tokenPage">
@@ -263,7 +268,7 @@ export default async function PostTokenPage({
             <div><dt>POST ID</dt><dd>{record.post_id}</dd></div>
             <div><dt>TOKEN</dt><dd>{record.token_address || "Pending confirmation"}</dd></div>
             <div><dt>LAUNCH TX</dt><dd>{record.tx_hash || "Pending confirmation"}</dd></div>
-            <div><dt>WEBSITE</dt><dd>{metadata.socials?.website || "https://launchonx.net"}</dd></div>
+            <div><dt>WEBSITE</dt><dd><a href={tokenWebsite}>{tokenWebsite}</a></dd></div>
           </dl>
         </div>
 
