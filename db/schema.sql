@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS xlaunch_social_commands (
   confirmation_token_hash TEXT NOT NULL,
   token_address TEXT,
   tx_hash TEXT,
+  reply_post_id TEXT,
   error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
