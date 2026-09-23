@@ -608,3 +608,17 @@ export async function getLiveTokensForMarketIndex(limit = 60) {
     LIMIT ${safeLimit}
   `;
 }
+
+
+export async function getMarketSnapshot(postId: string) {
+  const rows = await sql()`
+    SELECT
+      post_id, price_usd, market_cap_usd, volume_24h_usd, liquidity_usd,
+      price_change_24h_pct, trades_24h, holders, source,
+      source_updated_at, updated_at
+    FROM xlaunch_market_snapshots
+    WHERE post_id = ${postId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
