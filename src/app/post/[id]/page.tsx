@@ -1,7 +1,54 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getFeeEvents, getRegistryRecord } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  if (!/^\d+$/.test(id)) return {};
+
+  const record = await getRegistryRecord(id).catch(() => null);
+  if (!record) {
+    return {
+      title: "XLaunch — Canonical token",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const title = record.token_symbol
+    ? `${record.token_symbol} — XLaunch`
+    : `${record.token_name} — XLaunch`;
+  const description =
+    `${record.token_name} was launched from one canonical X post through ` +
+    `${record.venue === "pumpfun" ? "Pump.fun" : record.venue === "stonkfun" ? "StonkFun" : "Pons"} on XLaunch.`;
+  const url = `https://xlaunch.it/post/${id}`;
+  const image = `https://xlaunch.it/api/post-card/${id}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title,
+      description,
+      url,
+      siteName: "XLaunch",
+      type: "website",
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [image],
+    },
+  };
+}
 
 function feeRouteLabel(record: Awaited<ReturnType<typeof getRegistryRecord>>) {
   if (!record) return "";
