@@ -199,8 +199,8 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = (record.metadata || {}) as any;
-    const reservedMetadata = metadata?.launchMetadata || metadata;
-    const reservedConfig = metadata?.launchConfig || {};
+    const reservedMetadata = metadata;
+    const reservedConfig = metadata?.xlaunch?.launchConfig || {};
 
     const expectedPair = normalizePair(reservedConfig.pairToken);
     if (!isAddress(expectedPair) || !sameAddress(decoded.pairToken, expectedPair)) {
@@ -270,10 +270,17 @@ export async function POST(request: NextRequest) {
     });
 
     const event = parsed.find((item) => {
-      const args = item.args as { token?: Address; deployer?: Address };
+      const args = item.args as {
+        token?: Address;
+        deployer?: Address;
+        pairToken?: Address;
+        launchConfigId?: bigint;
+      };
       return (
         args.token?.toLowerCase() === tokenAddress.toLowerCase() &&
-        args.deployer?.toLowerCase() === wallet.toLowerCase()
+        args.deployer?.toLowerCase() === wallet.toLowerCase() &&
+        args.pairToken?.toLowerCase() === decoded.pairToken.toLowerCase() &&
+        Number(args.launchConfigId) === Number(decoded.launchConfigId)
       );
     });
     if (!event) {
