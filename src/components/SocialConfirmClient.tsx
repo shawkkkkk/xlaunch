@@ -8,6 +8,7 @@ type ConfirmData = {
   state: "ready" | "wallet_link_required" | "already_tokenized";
   sourceUrl?: string;
   linkedWallet?: string | null;
+  identityVerified?: boolean;
   registry?: {
     token_address?: string | null;
     venue?: string;
@@ -30,11 +31,10 @@ type ConfirmData = {
   };
 };
 
-function launcherUrl(data: ConfirmData, token: string) {
+function launcherUrl(data: ConfirmData) {
   if (!data.command) return "/";
   const params = new URLSearchParams();
   params.set("social", data.command.commandPostId);
-  params.set("socialToken", token);
   params.set("post", data.command.sourcePostId);
   params.set("venue", data.command.venue);
   if (data.command.intent.symbol) params.set("symbol", data.command.intent.symbol);
@@ -51,17 +51,15 @@ function launcherUrl(data: ConfirmData, token: string) {
 
 export default function SocialConfirmClient({
   commandPostId,
-  token,
 }: {
   commandPostId: string;
-  token: string;
 }) {
   const [data, setData] = useState<ConfirmData | null>(null);
   const [error, setError] = useState("");
   const [linking, setLinking] = useState(false);
 
   useEffect(() => {
-    const params = new URLSearchParams({ command: commandPostId, token });
+    const params = new URLSearchParams({ command: commandPostId });
     fetch(`/api/social/confirm?${params.toString()}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json();
@@ -69,9 +67,9 @@ export default function SocialConfirmClient({
         setData(body);
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not verify launch command."));
-  }, [commandPostId, token]);
+  }, [commandPostId]);
 
-  const continueUrl = useMemo(() => (data ? launcherUrl(data, token) : "/"), [data, token]);
+  const continueUrl = useMemo(() => (data ? launcherUrl(data) : "/"), [data]);
 
   async function linkWallet() {
     if (!data?.command) return;
@@ -106,7 +104,6 @@ export default function SocialConfirmClient({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           commandPostId,
-          token,
           wallet,
           auth: {
             token: challenge.token,
@@ -176,19 +173,32 @@ export default function SocialConfirmClient({
         {intent.feeRoute && <div><span>CREATOR FEES</span><b>{intent.feeRoute.replaceAll("_", " ").toUpperCase()}</b></div>}
       </div>
 
-      <div className="socialWallet">
-        <span>{data.linkedWallet ? "LINKED WALLET" : "WALLET REQUIRED"}</span>
-        <code>{data.linkedWallet || "Connect once to link this X account."}</code>
-        {!data.linkedWallet && (
-          <button type="button" className="socialLinkWallet" onClick={linkWallet} disabled={linking}>
-            {linking
-              ? "LINKING…"
-              : data.command!.venue === "pons"
-                ? "LINK EVM WALLET"
-                : "LINK SOLANA WALLET"}
-          </button>
-        )}
-      </div>
+      {!data.identityVerified ? (
+        <div className="socialWallet">
+          <span>X IDENTITY REQUIRED</span>
+          <code>Verify @{data.command!.authorHandle} before linking a wallet.</code>
+          <a
+            className="socialLinkWallet"
+            href={`/api/x/oauth/start?command=${encodeURIComponent(commandPostId)}`}
+          >
+            VERIFY WITH X →
+          </a>
+        </div>
+      ) : (
+        <div className="socialWallet">
+          <span>{data.linkedWallet ? "LINKED WALLET" : "WALLET REQUIRED"}</span>
+          <code>{data.linkedWallet || "Connect once to link this X account."}</code>
+          {!data.linkedWallet && (
+            <button type="button" className="socialLinkWallet" onClick={linkWallet} disabled={linking}>
+              {linking
+                ? "LINKING…"
+                : data.command!.venue === "pons"
+                  ? "LINK EVM WALLET"
+                  : "LINK SOLANA WALLET"}
+            </button>
+          )}
+        </div>
+      )}
 
       <p className="socialFine">
         XLaunch stores only the public wallet address linked to this verified X user. It never
@@ -197,9 +207,15 @@ export default function SocialConfirmClient({
         actual launch transaction.
       </p>
 
-      <a className="socialPrimary" href={continueUrl}>
-        REVIEW & SIGN →
-      </a>
+      {data.identityVerified && data.linkedWallet ? (
+        <a className="socialPrimary" href={continueUrl}>
+          REVIEW & SIGN →
+        </a>
+      ) : (
+        <div className="socialBlocked">
+          Verify the command author and link the required wallet to continue.
+        </div>
+      )}
     </section>
   );
 }
