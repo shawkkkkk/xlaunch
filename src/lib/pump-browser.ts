@@ -18,6 +18,10 @@ type InjectedSolanaProvider = {
   publicKey?: { toString(): string } | null;
   connect: () => Promise<{ publicKey: { toString(): string } }>;
   signTransaction: (transaction: Transaction) => Promise<Transaction>;
+  signMessage?: (
+    message: Uint8Array,
+    encoding?: "utf8",
+  ) => Promise<{ signature: Uint8Array }>;
 };
 
 declare global {
@@ -51,6 +55,24 @@ export async function connectSolanaWallet() {
   const wallet = provider();
   const result = await wallet.connect();
   return new PublicKey(result.publicKey.toString());
+}
+
+export async function signSolanaMessage(message: string) {
+  const wallet = provider();
+  const publicKey = await connectSolanaWallet();
+  if (!wallet.signMessage) {
+    throw new Error(
+      "This Solana wallet does not support message signing required to reserve an X post.",
+    );
+  }
+  const signed = await wallet.signMessage(
+    new TextEncoder().encode(message),
+    "utf8",
+  );
+  return {
+    wallet: publicKey.toBase58(),
+    signature: Buffer.from(signed.signature).toString("base64"),
+  };
 }
 
 function metadataUri(postId: string) {
