@@ -16,7 +16,7 @@ function cleanHandle(handle?: string) {
   return value;
 }
 
-function treasuryFor(venue: "stonkfun" | "pons") {
+function treasuryFor(venue: "stonkfun" | "pons" | "pumpfun") {
   const value =
     venue === "pons"
       ? process.env.XLAUNCH_XMONEY_EVM_TREASURY
@@ -30,14 +30,14 @@ function treasuryFor(venue: "stonkfun" | "pons") {
 }
 
 export function resolveFeeDestination(args: {
-  venue: "stonkfun" | "pons";
+  venue: "stonkfun" | "pons" | "pumpfun";
   stonkMode?: "standard" | "reward";
   route: FeeRoute;
   developerWallet: string;
   customWallet?: string;
   authorHandle?: string;
 }): FeeDestination {
-  if (args.venue === "stonkfun" && args.stonkMode === "reward") {
+  if ((args.venue === "stonkfun" && args.stonkMode === "reward") || args.route === "holder_rewards") {
     return {
       route: "holder_rewards",
       label: "Holder rewards",
