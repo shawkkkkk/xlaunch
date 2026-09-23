@@ -411,76 +411,105 @@ export async function launchOnPons(input: PonsLaunchInput) {
 
   const openingBuy = Number(input.openingBuy || "0");
   let hash: Hex;
+  let launchAttemptStarted = false;
 
-  if (openingBuy > 0) {
-    const quoteIn = parseUnits(String(input.openingBuy), pairDecimals);
-    const slippageBps = Math.max(1, Math.min(input.openingBuySlippageBps ?? 300, 2_500));
-    const quote = quoteInitialPonsBuy({
-      quoteIn,
-      supply: BigInt(input.launchConfig.supply),
-      phantomQuote,
-      graduationThreshold,
-      curveFeeBps: input.launchConfig.curveFeeBps,
-      creatorTaxBps: input.creatorTaxBps,
-      slippageBps,
-    });
-
-    if (pairToken !== zeroAddress) {
-      const allowance = await client.readContract({
-        address: pairToken,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [account, PONS_LAUNCH_AND_BUY],
+  try {
+    if (openingBuy > 0) {
+      const quoteIn = parseUnits(String(input.openingBuy), pairDecimals);
+      const slippageBps = Math.max(1, Math.min(input.openingBuySlippageBps ?? 300, 2_500));
+      const quote = quoteInitialPonsBuy({
+        quoteIn,
+        supply: BigInt(input.launchConfig.supply),
+        phantomQuote,
+        graduationThreshold,
+        curveFeeBps: input.launchConfig.curveFeeBps,
+        creatorTaxBps: input.creatorTaxBps,
+        slippageBps,
       });
-      if (allowance < quoteIn) {
-        const approvalHash = await wallet.writeContract({
+
+      if (pairToken !== zeroAddress) {
+        const allowance = await client.readContract({
           address: pairToken,
           abi: erc20Abi,
-          functionName: "approve",
-          args: [PONS_LAUNCH_AND_BUY, quoteIn],
+          functionName: "allowance",
+          args: [account, PONS_LAUNCH_AND_BUY],
         });
-        const approvalReceipt = await client.waitForTransactionReceipt({ hash: approvalHash });
-        if (approvalReceipt.status !== "success") throw new Error("Pair-token approval failed.");
+        if (allowance < quoteIn) {
+          const approvalHash = await wallet.writeContract({
+            address: pairToken,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [PONS_LAUNCH_AND_BUY, quoteIn],
+          });
+          const approvalReceipt = await client.waitForTransactionReceipt({ hash: approvalHash });
+          if (approvalReceipt.status !== "success") throw new Error("Pair-token approval failed.");
+        }
       }
-    }
 
-    hash = await wallet.writeContract({
-      address: PONS_LAUNCH_AND_BUY,
-      abi: routerAbi,
-      functionName: "launchAndBuy",
-      args: [
-        params,
-        BigInt(input.launchConfig.id),
-        pairToken,
-        quoteIn,
-        quote.minTokensOut,
-        openingBuyRecipient,
-        exemptions,
-      ],
-      value: pairToken === zeroAddress ? launchFee + quoteIn : launchFee,
-    });
-  } else {
-    if (exemptions.length) {
+      launchAttemptStarted = true;
       hash = await wallet.writeContract({
-        address: PONS_FACTORY,
-        abi: factoryAbi,
-        functionName: "launchToken",
-        args: [params, BigInt(input.launchConfig.id), pairToken, exemptions],
-        value: launchFee,
+        address: PONS_LAUNCH_AND_BUY,
+        abi: routerAbi,
+        functionName: "launchAndBuy",
+        args: [
+          params,
+          BigInt(input.launchConfig.id),
+          pairToken,
+          quoteIn,
+          quote.minTokensOut,
+          openingBuyRecipient,
+          exemptions,
+        ],
+        value: pairToken === zeroAddress ? launchFee + quoteIn : launchFee,
       });
     } else {
-      hash = await wallet.writeContract({
-        address: PONS_FACTORY,
-        abi: factoryAbi,
-        functionName: "launchToken",
-        args: [params, BigInt(input.launchConfig.id), pairToken],
-        value: launchFee,
-      });
+      launchAttemptStarted = true;
+      if (exemptions.length) {
+        hash = await wallet.writeContract({
+          address: PONS_FACTORY,
+          abi: factoryAbi,
+          functionName: "launchToken",
+          args: [params, BigInt(input.launchConfig.id), pairToken, exemptions],
+          value: launchFee,
+        });
+      } else {
+        hash = await wallet.writeContract({
+          address: PONS_FACTORY,
+          abi: factoryAbi,
+          functionName: "launchToken",
+          args: [params, BigInt(input.launchConfig.id), pairToken],
+          value: launchFee,
+        });
+      }
     }
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("Pons launch failed.");
+    const code = Number((error as { code?: number })?.code);
+    const message = tagged.message.toLowerCase();
+    const rejected =
+      code === 4001 ||
+      message.includes("user rejected") ||
+      message.includes("user denied") ||
+      message.includes("rejected the request");
+
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted =
+      launchAttemptStarted && !rejected;
+    throw tagged;
   }
 
-  const receipt = await client.waitForTransactionReceipt({ hash });
-  if (receipt.status !== "success") throw new Error("Pons launch transaction reverted.");
+  let receipt;
+  try {
+    receipt = await client.waitForTransactionReceipt({ hash });
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("Pons confirmation failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+    throw tagged;
+  }
+  if (receipt.status !== "success") {
+    const failed = new Error("Pons launch transaction reverted.");
+    (failed as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+    throw failed;
+  }
 
   const factoryLogs = receipt.logs.filter(
     (log) => log.address.toLowerCase() === PONS_FACTORY.toLowerCase(),
