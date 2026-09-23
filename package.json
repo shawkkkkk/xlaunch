@@ -22,7 +22,9 @@
     "bn.js": "5.2.2",
     "@raydium-io/raydium-sdk-v2": "0.2.72-alpha",
     "tweetnacl": "^1.0.3",
-    "bs58": "^6.0.0"
+    "bs58": "^6.0.0",
+    "@wallet-standard/app": "^1.1.1",
+    "@solana/wallet-standard": "^1.1.7"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
