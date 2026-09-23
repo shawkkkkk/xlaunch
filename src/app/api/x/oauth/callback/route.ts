@@ -21,7 +21,7 @@ function safeReturnTo(value?: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://xlaunch.it").replace(/\/$/, "");
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://launchonx.net").replace(/\/$/, "");
   const fail = (message: string) =>
     NextResponse.redirect(
       new URL("/?xAuthError=" + encodeURIComponent(message), origin),
