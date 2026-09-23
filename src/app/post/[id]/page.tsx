@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getFeeEvents, getMarketSnapshot, getRegistryRecord } from "@/lib/db";
 import { fetchDexScreenerMarket } from "@/lib/market";
+import TokenRiskPanel from "@/components/TokenRiskPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -192,6 +193,10 @@ export default async function PostTokenPage({
             <b>{compactUsd(dex?.liquidityUsd ?? (market as any)?.liquidity_usd)}</b>
           </div>
         </section>
+      )}
+
+      {record.status === "live" && record.token_address && (
+        <TokenRiskPanel postId={record.post_id} chain={record.chain} />
       )}
 
       <section className="dexPanel">
