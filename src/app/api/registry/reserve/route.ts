@@ -142,6 +142,11 @@ export async function POST(request: NextRequest) {
               launchConfigId: Number(body.launchConfig?.launchConfigId ?? 0),
               creatorTaxBps: Number(body.launchConfig?.creatorTaxBps ?? 0),
               buybackEnabled: Boolean(body.launchConfig?.buybackEnabled),
+              openingBuy: String(body.launchConfig?.openingBuy ?? "0"),
+              openingBuyRecipient: String(body.launchConfig?.openingBuyRecipient ?? ""),
+              openingBuySlippageBps: Number(body.launchConfig?.openingBuySlippageBps ?? 300),
+              exemptions: String(body.launchConfig?.exemptions ?? ""),
+              salt: String(body.launchConfig?.salt ?? ""),
             };
 
     const storedMetadata = {
