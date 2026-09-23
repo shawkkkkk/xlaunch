@@ -3,6 +3,9 @@ import { buildLaunchMetadata } from "@/lib/metadata";
 import { reservePost } from "@/lib/db";
 import { parseXPostUrl } from "@/lib/xpost";
 import { resolveFeeDestination, type FeeRoute } from "@/lib/fees";
+import { verifyReservationProof } from "@/lib/auth";
+
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +27,14 @@ export async function POST(request: NextRequest) {
 
     const wallet = String(body.wallet ?? "").trim();
     if (!wallet) throw new Error("Wallet is required.");
+
+    await verifyReservationProof({
+      token: String(body.auth?.token ?? ""),
+      signature: String(body.auth?.signature ?? ""),
+      postId: post.id,
+      venue,
+      wallet,
+    });
 
     const requestedFeeRoute = String(body.feeRoute || "developer") as FeeRoute;
     const forcedHolderRewards =
