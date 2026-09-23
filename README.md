@@ -68,3 +68,20 @@ Copy `.env.example` and configure `DATABASE_URL` before enabling canonical launc
 - post uniqueness is enforced in the database, not only the browser
 - fee selections are not displayed as verified until checked against the confirmed transaction
 - financial routing fails closed when required treasury infrastructure is missing
+
+
+## Social launches
+
+XLaunch is designed to support launching from X itself.
+
+Reply to the exact post you want to tokenize and mention the XLaunch account with an explicit venue, for example:
+
+```
+@xlaunch launch this on pumpfun as $DOG
+@xlaunch launch this on stonkfun reward mode 2% as $POST
+@xlaunch launch this on pons paired with AAPL, fees to author
+```
+
+The reply's parent X status id is the canonical source. The command cannot substitute another source post. Social commands are parsed server-side, but launching remains disabled until the command author has an authenticated linked wallet and the X ingestion service verifies the mention/reply relationship.
+
+The same one-post/one-token invariant applies across web and social surfaces.
