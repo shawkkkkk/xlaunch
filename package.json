@@ -27,8 +27,11 @@
     "@solana/wallet-standard": "^1.1.7",
     "@vercel/blob": "^2.8.0",
     "@privy-io/react-auth": "3.45.0",
-    "@solana-program/memo": "^0.14.1",
-    "@stripe/stripe-js": "^9.16.0"
+    "@solana-program/memo": "0.8.0",
+    "@stripe/stripe-js": "^9.16.0",
+    "@solana/kit": "3.0.3",
+    "@solana-program/system": "0.8.0",
+    "@solana-program/token": "0.6.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
