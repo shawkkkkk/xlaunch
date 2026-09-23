@@ -99,6 +99,25 @@ export async function reservePost(args: {
   return (rows[0] as RegistryRecord | undefined) ?? null;
 }
 
+export async function releaseReservedPost(args: {
+  postId: string;
+  wallet: string;
+  venue: RegistryVenue;
+}) {
+  const rows = await sql()`
+    DELETE FROM xlaunch_posts
+    WHERE post_id = ${args.postId}
+      AND status = 'reserved'
+      AND venue = ${args.venue}
+      AND (
+        (chain = 'solana' AND reserver_wallet = ${args.wallet})
+        OR (chain = 'robinhood' AND lower(reserver_wallet) = lower(${args.wallet}))
+      )
+    RETURNING *
+  `;
+  return (rows[0] as RegistryRecord | undefined) ?? null;
+}
+
 export async function confirmReservedPost(args: {
   postId: string;
   wallet: string;
