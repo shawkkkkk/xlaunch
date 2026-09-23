@@ -143,7 +143,7 @@ export async function GET() {
     app: "xlaunch",
     status: launchBlocking.length ? "not_ready" : "ready",
     publicLaunchReady: launchBlocking.length === 0,
-    botHandle: process.env.X_BOT_USERNAME || "xlaunchit",
+    botHandle: process.env.X_BOT_USERNAME || "launchonx",
     operatorHandle: process.env.X_AUTOMATION_OPERATOR_HANDLE || "ShayanelH",
     checks,
   });
