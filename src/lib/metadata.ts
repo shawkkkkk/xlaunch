@@ -26,6 +26,11 @@ export function canonicalPostPage(postId: string) {
   return `${siteOrigin()}/post/${postId}`;
 }
 
+export function defaultPostImage(postId: string) {
+  if (!/^\d+$/.test(postId)) throw new Error("Invalid X post id.");
+  return `${siteOrigin()}/api/post-card/${postId}`;
+}
+
 export function canonicalXPostUrl(postId: string, postUrl?: string) {
   if (!/^\d+$/.test(postId)) throw new Error("Invalid X post id.");
   const candidate = postUrl?.trim();
@@ -64,7 +69,7 @@ export function buildLaunchMetadata(input: TokenMetadataInput) {
     name: input.name.trim(),
     symbol,
     description: input.description?.trim() || `Tokenized from X post ${input.postId} through XLaunch.`,
-    image: input.image?.trim() || "",
+    image: input.image?.trim() || defaultPostImage(input.postId),
     source: {
       platform: "x",
       postId: input.postId,
