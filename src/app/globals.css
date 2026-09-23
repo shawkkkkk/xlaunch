@@ -107,6 +107,23 @@
   align-items:center;
   gap:8px;
 }
+.xlWalletSelect{
+  height:40px;
+  max-width:160px;
+  padding:0 34px 0 12px;
+  border-radius:6px;
+  border:1px solid rgba(198,198,198,.48);
+  background:#111;
+  color:#f4f4f4;
+  font:inherit;
+  font-size:13px;
+  cursor:pointer;
+}
+.xlWalletSelect:focus{
+  outline:none;
+  border-color:rgba(235,235,235,.9);
+  box-shadow:0 0 0 2px rgba(255,255,255,.08);
+}
 .xlButton{
   position:relative;
   isolation:isolate;
@@ -472,6 +489,7 @@
   }
   .xlHeaderActions{z-index:80}
   .xlHeaderActions .xlButton{display:none}
+  .xlWalletSelect{height:42px;max-width:138px;font-size:12px}
   .xlBurger{display:grid;z-index:80}
   .xlMenuBackdrop{
     display:block;
