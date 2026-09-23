@@ -36,12 +36,89 @@ function isTxHash(value: string): value is Hex {
   return /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
-function creatorFeeRecipientFromInput(input: Hex) {
+type DecodedTokenParams = {
+  name: string;
+  symbol: string;
+  logo: string;
+  description: string;
+  socials: {
+    twitter: string;
+    telegram: string;
+    discord: string;
+    website: string;
+    farcaster: string;
+  };
+  creatorFeeRecipient: Address;
+  creatorTaxBps: number;
+  buybackEnabled: boolean;
+  expectedEconomics: Hex;
+  salt: Hex;
+};
+
+type DecodedLaunch = {
+  functionName: string;
+  params: DecodedTokenParams;
+  launchConfigId: bigint;
+  pairToken: Address;
+  quoteIn?: bigint;
+  minTokensOut?: bigint;
+  recipient?: Address;
+  exemptions: Address[];
+};
+
+function decodePonsLaunch(input: Hex): DecodedLaunch {
   const decoded = decodeFunctionData({ abi: launchCallAbi, data: input });
-  const params = decoded.args?.[0] as
-    | { creatorFeeRecipient?: Address }
-    | undefined;
-  return params?.creatorFeeRecipient;
+  const args = decoded.args as readonly unknown[] | undefined;
+  if (!args || args.length < 3) throw new Error("Could not decode the Pons launch calldata.");
+
+  const params = args[0] as DecodedTokenParams;
+  const launchConfigId = args[1] as bigint;
+  const pairToken = args[2] as Address;
+
+  if (decoded.functionName === "launchAndBuy") {
+    return {
+      functionName: decoded.functionName,
+      params,
+      launchConfigId,
+      pairToken,
+      quoteIn: args[3] as bigint,
+      minTokensOut: args[4] as bigint,
+      recipient: args[5] as Address,
+      exemptions: (args[6] as Address[]) || [],
+    };
+  }
+
+  return {
+    functionName: decoded.functionName,
+    params,
+    launchConfigId,
+    pairToken,
+    exemptions: ((args[3] as Address[] | undefined) || []),
+  };
+}
+
+function sameAddress(a: string, b: string) {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+function normalizePair(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw.toUpperCase() === "ETH") {
+    return "0x0000000000000000000000000000000000000000";
+  }
+  return raw;
+}
+
+function normalizeExemptions(value: unknown) {
+  return String(value ?? "")
+    .split(/[\n,]/)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .sort();
+}
+
+function sameStringArray(a: string[], b: string[]) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 export async function POST(request: NextRequest) {
@@ -109,18 +186,78 @@ export async function POST(request: NextRequest) {
       throw new Error("Transaction was not sent to an approved Pons launch contract.");
     }
 
-    const actualFeeRecipient = creatorFeeRecipientFromInput(transaction.input);
-    if (!actualFeeRecipient) {
-      throw new Error("Could not decode the Pons creator-fee destination.");
-    }
+    const decoded = decodePonsLaunch(transaction.input);
+    const actualFeeRecipient = decoded.params.creatorFeeRecipient;
+
     if (
       record.fee_recipient_wallet &&
-      actualFeeRecipient.toLowerCase() !==
-        record.fee_recipient_wallet.toLowerCase()
+      !sameAddress(actualFeeRecipient, record.fee_recipient_wallet)
     ) {
       throw new Error(
         "The signed Pons transaction uses a different creator-fee recipient than the public XLaunch record.",
       );
+    }
+
+    const metadata = (record.metadata || {}) as any;
+    const reservedMetadata = metadata?.launchMetadata || metadata;
+    const reservedConfig = metadata?.launchConfig || {};
+
+    const expectedPair = normalizePair(reservedConfig.pairToken);
+    if (!isAddress(expectedPair) || !sameAddress(decoded.pairToken, expectedPair)) {
+      throw new Error("The signed Pons transaction uses a different pair token than the reservation.");
+    }
+    if (Number(decoded.launchConfigId) !== Number(reservedConfig.launchConfigId)) {
+      throw new Error("The signed Pons transaction uses a different launch config than the reservation.");
+    }
+    if (Number(decoded.params.creatorTaxBps) !== Number(reservedConfig.creatorTaxBps || 0)) {
+      throw new Error("The signed Pons transaction uses a different creator tax than the reservation.");
+    }
+    if (Boolean(decoded.params.buybackEnabled) !== Boolean(reservedConfig.buybackEnabled)) {
+      throw new Error("The signed Pons transaction changes the reviewed buyback setting.");
+    }
+
+    const fields: Array<[string, string, string]> = [
+      ["name", String(decoded.params.name), String(reservedMetadata?.name || "")],
+      ["symbol", String(decoded.params.symbol), String(reservedMetadata?.symbol || "")],
+      ["logo", String(decoded.params.logo), String(reservedMetadata?.image || "")],
+      ["description", String(decoded.params.description), String(reservedMetadata?.description || "")],
+      ["twitter", String(decoded.params.socials.twitter), String(reservedMetadata?.socials?.twitter || "")],
+      ["telegram", String(decoded.params.socials.telegram), String(reservedMetadata?.socials?.telegram || "")],
+      ["discord", String(decoded.params.socials.discord), String(reservedMetadata?.socials?.discord || "")],
+      ["website", String(decoded.params.socials.website), String(reservedMetadata?.socials?.website || "")],
+      ["farcaster", String(decoded.params.socials.farcaster), String(reservedMetadata?.socials?.farcaster || "")],
+    ];
+    const changedField = fields.find(([, actual, expected]) => actual !== expected);
+    if (changedField) {
+      throw new Error(
+        `The signed Pons transaction changes the reviewed ${changedField[0]} field.`,
+      );
+    }
+
+    const expectedExemptions = normalizeExemptions(reservedConfig.exemptions);
+    const actualExemptions = decoded.exemptions.map((address) => address.toLowerCase()).sort();
+    if (!sameStringArray(actualExemptions, expectedExemptions)) {
+      throw new Error("The signed Pons transaction changes the opening-tax exemption list.");
+    }
+
+    const expectedOpeningBuy = Number(reservedConfig.openingBuy || "0");
+    const hasOpeningBuy = decoded.functionName === "launchAndBuy";
+    if ((expectedOpeningBuy > 0) !== hasOpeningBuy) {
+      throw new Error("The signed Pons transaction changes the reviewed opening-buy choice.");
+    }
+    if (hasOpeningBuy) {
+      const expectedRecipient = String(reservedConfig.openingBuyRecipient || wallet);
+      if (!decoded.recipient || !isAddress(expectedRecipient) || !sameAddress(decoded.recipient, expectedRecipient)) {
+        throw new Error("The signed Pons transaction changes the opening-buy recipient.");
+      }
+      if (!decoded.quoteIn || decoded.quoteIn <= 0n) {
+        throw new Error("The Pons opening buy has an invalid quote amount.");
+      }
+    }
+
+    const requestedSalt = String(reservedConfig.salt || "").trim();
+    if (requestedSalt && decoded.params.salt.toLowerCase() !== requestedSalt.toLowerCase()) {
+      throw new Error("The signed Pons transaction changes the requested CREATE2 salt.");
     }
 
     const parsed = parseEventLogs({
