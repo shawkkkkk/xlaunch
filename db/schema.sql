@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS xlaunch_posts (
   token_name TEXT NOT NULL,
   token_symbol TEXT NOT NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  fee_route TEXT NOT NULL DEFAULT 'developer' CHECK (fee_route IN ('author_xmoney', 'developer', 'custom', 'holder_rewards')),
+  fee_recipient_handle TEXT,
+  fee_recipient_wallet TEXT,
   token_address TEXT UNIQUE,
   tx_hash TEXT UNIQUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -23,3 +26,20 @@ CREATE TABLE IF NOT EXISTS xlaunch_posts (
 
 CREATE INDEX IF NOT EXISTS xlaunch_posts_status_idx ON xlaunch_posts(status);
 CREATE INDEX IF NOT EXISTS xlaunch_posts_creator_idx ON xlaunch_posts(reserver_wallet);
+
+
+CREATE TABLE IF NOT EXISTS xlaunch_fee_events (
+  id BIGSERIAL PRIMARY KEY,
+  post_id TEXT NOT NULL REFERENCES xlaunch_posts(post_id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN ('accrued', 'claimed', 'converted', 'xmoney_sent', 'xmoney_expired', 'refunded')),
+  asset TEXT,
+  amount TEXT,
+  usd_amount NUMERIC(20, 6),
+  chain_tx_hash TEXT,
+  proof_url TEXT,
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS xlaunch_fee_events_post_idx
+  ON xlaunch_fee_events(post_id, created_at DESC);
