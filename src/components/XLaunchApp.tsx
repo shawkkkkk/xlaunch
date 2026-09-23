@@ -699,12 +699,12 @@ export default function XLaunchApp() {
           </a>
           <a
             className="xlNavPill xlAppear xlSoft"
-            href="https://x.com/launchonx"
+            href="https://x.com/launchedonx"
             target="_blank"
             rel="noreferrer"
             onClick={() => setMenuOpen(false)}
           >
-            @launchonx
+            @launchedonx
           </a>
         </nav>
 
@@ -775,7 +775,7 @@ export default function XLaunchApp() {
         </div>
         <div className="xlStat xlAppear xlStatIn">
           <span className="xlStatIcon">𝕏</span>
-          <span>Launch directly with @launchonx</span>
+          <span>Launch directly with @launchedonx</span>
         </div>
       </div>
 
