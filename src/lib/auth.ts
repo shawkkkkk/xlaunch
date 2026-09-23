@@ -130,6 +130,74 @@ function decodeChallenge(token: string) {
   return payload;
 }
 
+export type ReservationReleasePayload = {
+  version: 1;
+  purpose: "release";
+  postId: string;
+  venue: ChallengeVenue;
+  wallet: string;
+  expiresAt: number;
+};
+
+export function createReservationReleaseToken(args: {
+  postId: string;
+  venue: ChallengeVenue;
+  wallet: string;
+}) {
+  if (!/^\d+$/.test(args.postId)) throw new Error("Invalid X post id.");
+  const payload: ReservationReleasePayload = {
+    version: 1,
+    purpose: "release",
+    postId: args.postId,
+    venue: args.venue,
+    wallet: canonicalWallet(args.wallet, args.venue),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `${encoded}.${mac(encoded)}`;
+}
+
+export function verifyReservationReleaseToken(args: {
+  token: string;
+  postId: string;
+  venue: ChallengeVenue;
+  wallet: string;
+}) {
+  const [encoded, suppliedMac, ...rest] = args.token.split(".");
+  if (!encoded || !suppliedMac || rest.length) {
+    throw new Error("Invalid reservation release token.");
+  }
+  const expectedMac = mac(encoded);
+  const a = Buffer.from(expectedMac);
+  const b = Buffer.from(suppliedMac);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new Error("Invalid reservation release token.");
+  }
+
+  let payload: ReservationReleasePayload;
+  try {
+    payload = JSON.parse(
+      Buffer.from(encoded, "base64url").toString("utf8"),
+    ) as ReservationReleasePayload;
+  } catch {
+    throw new Error("Invalid reservation release token.");
+  }
+
+  const wallet = canonicalWallet(args.wallet, args.venue);
+  if (
+    payload.version !== 1 ||
+    payload.purpose !== "release" ||
+    payload.postId !== args.postId ||
+    payload.venue !== args.venue ||
+    payload.wallet !== wallet ||
+    !Number.isSafeInteger(payload.expiresAt) ||
+    payload.expiresAt < Date.now()
+  ) {
+    throw new Error("Reservation release token is invalid or expired.");
+  }
+  return payload;
+}
+
 export async function verifyReservationProof(args: {
   token: string;
   signature: string;
