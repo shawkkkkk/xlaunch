@@ -149,7 +149,18 @@ export default async function PostTokenPage({
       <nav>
         <a className="logo" href="/">XLAUNCH</a>
         <div className="navRule">CANONICAL POST REGISTRY</div>
-        <a className="wallet tokenBack" href="/">LAUNCH A POST</a>
+        <div className="navActions">
+          <a className="profileLink" href="/docs">DOCS</a>
+          <a
+            className="profileLink"
+            href="https://github.com/shawkkkkk/xlaunch"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GITHUB ↗
+          </a>
+          <a className="wallet tokenBack" href="/">LAUNCH A POST</a>
+        </div>
       </nav>
 
       <section className="tokenHero">
