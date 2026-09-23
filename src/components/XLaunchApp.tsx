@@ -340,6 +340,13 @@ export default function XLaunchApp() {
       if (!response.ok) throw new Error(body.error || "Could not resolve post.");
 
       setResolved(body);
+      if (
+        body.registry?.venue === "stonkfun" ||
+        body.registry?.venue === "pumpfun" ||
+        body.registry?.venue === "pons"
+      ) {
+        setVenue(body.registry.venue);
+      }
       try {
         const saved = window.localStorage.getItem(`xlaunch:pending:${body.post.id}`);
         if (saved) {
@@ -1616,18 +1623,29 @@ export default function XLaunchApp() {
               </div>
             </div>
 
-            <button
-              className="launch"
-              type="button"
-              disabled={alreadyLive || launching}
-              onClick={launch}
-            >
-              {alreadyLive
-                ? "POST ALREADY TOKENIZED"
-                : launching
-                  ? "LAUNCHING…"
-                  : "REVIEW & LAUNCH →"}
-            </button>
+            {reserved && !pendingLaunch ? (
+              <button
+                className="launch reservationLaunch"
+                type="button"
+                disabled={launching}
+                onClick={() => void releaseReservationForRetry()}
+              >
+                {launching ? "RELEASING…" : "RELEASE RESERVATION & RETRY →"}
+              </button>
+            ) : (
+              <button
+                className="launch"
+                type="button"
+                disabled={alreadyLive || launching}
+                onClick={launch}
+              >
+                {alreadyLive
+                  ? "POST ALREADY TOKENIZED"
+                  : launching
+                    ? "LAUNCHING…"
+                    : "REVIEW & LAUNCH →"}
+              </button>
+            )}
 
             {pendingLaunch && (
               <div className="launchRecovery">
