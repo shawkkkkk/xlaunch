@@ -25,11 +25,14 @@ type InjectedSolanaProvider = {
   ) => Promise<{ signature: Uint8Array }>;
 };
 
+export type SolanaWalletChoice = "phantom" | "backpack" | "solflare" | "browser";
+
 declare global {
   interface Window {
     solana?: InjectedSolanaProvider;
     phantom?: { solana?: InjectedSolanaProvider };
     backpack?: { solana?: InjectedSolanaProvider };
+    solflare?: InjectedSolanaProvider;
   }
 }
 
@@ -40,27 +43,51 @@ function rpcUrl() {
   );
 }
 
-function provider(): InjectedSolanaProvider {
+export function availableSolanaWallets(): Array<{ id: SolanaWalletChoice; label: string }> {
+  if (typeof window === "undefined") return [];
+  const wallets: Array<{ id: SolanaWalletChoice; label: string }> = [];
+  if (window.phantom?.solana) wallets.push({ id: "phantom", label: "Phantom" });
+  if (window.backpack?.solana) wallets.push({ id: "backpack", label: "Backpack" });
+  if (window.solflare) wallets.push({ id: "solflare", label: "Solflare" });
+
+  const known = [window.phantom?.solana, window.backpack?.solana, window.solflare];
+  if (window.solana && !known.includes(window.solana)) {
+    wallets.push({ id: "browser", label: "Browser Solana wallet" });
+  }
+  return wallets;
+}
+
+export function solanaProvider(choice?: SolanaWalletChoice): InjectedSolanaProvider {
   if (typeof window === "undefined") throw new Error("Solana wallet is unavailable.");
+
+  if (!choice) {
+    throw new Error("Choose a Solana wallet before connecting.");
+  }
+
   const wallet =
-    window.phantom?.solana ||
-    window.backpack?.solana ||
-    window.solana;
+    choice === "phantom"
+      ? window.phantom?.solana
+      : choice === "backpack"
+        ? window.backpack?.solana
+        : choice === "solflare"
+          ? window.solflare
+          : window.solana;
+
   if (!wallet) {
-    throw new Error("No Solana wallet found. Install Phantom or Backpack.");
+    throw new Error(`The selected Solana wallet (${choice}) is not available in this browser.`);
   }
   return wallet;
 }
 
-export async function connectSolanaWallet() {
-  const wallet = provider();
+export async function connectSolanaWallet(choice?: SolanaWalletChoice) {
+  const wallet = solanaProvider(choice);
   const result = await wallet.connect();
   return new PublicKey(result.publicKey.toString());
 }
 
-export async function signSolanaMessage(message: string) {
-  const wallet = provider();
-  const publicKey = await connectSolanaWallet();
+export async function signSolanaMessage(message: string, choice?: SolanaWalletChoice) {
+  const wallet = solanaProvider(choice);
+  const publicKey = await connectSolanaWallet(choice);
   if (!wallet.signMessage) {
     throw new Error(
       "This Solana wallet does not support message signing required to reserve an X post.",
@@ -113,11 +140,12 @@ export type PumpLaunchInput = {
   holderReward: boolean;
   creatorFeeBps: number;
   feeRecipientWallet?: string | null;
+  walletProvider?: SolanaWalletChoice;
 };
 
 export async function launchOnPump(input: PumpLaunchInput) {
-  const wallet = provider();
-  const user = await connectSolanaWallet();
+  const wallet = solanaProvider(input.walletProvider);
+  const user = await connectSolanaWallet(input.walletProvider);
   const connection = new Connection(rpcUrl(), "confirmed");
   const online = new OnlinePumpSdk(connection);
   const mintKeypair = Keypair.generate();
@@ -237,9 +265,10 @@ export async function launchOnPump(input: PumpLaunchInput) {
 export async function claimPumpCreatorFees(args: {
   quoteMint: string;
   expectedRecipient?: string | null;
+  walletProvider?: SolanaWalletChoice;
 }) {
-  const wallet = provider();
-  const payer = await connectSolanaWallet();
+  const wallet = solanaProvider(args.walletProvider);
+  const payer = await connectSolanaWallet(args.walletProvider);
   if (
     args.expectedRecipient &&
     payer.toBase58() !== args.expectedRecipient
