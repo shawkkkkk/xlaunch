@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRegistryRecord, releaseReservedPost } from "@/lib/db";
-import { verifyReservationProof } from "@/lib/auth";
+import {
+  verifyReservationProof,
+  verifyReservationReleaseToken,
+} from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -17,13 +20,23 @@ export async function POST(request: NextRequest) {
     }
     if (!wallet) throw new Error("Wallet is required.");
 
-    await verifyReservationProof({
-      token: String(body.auth?.token ?? ""),
-      signature: String(body.auth?.signature ?? ""),
-      postId,
-      venue,
-      wallet,
-    });
+    const releaseToken = String(body.releaseToken ?? "");
+    if (releaseToken) {
+      verifyReservationReleaseToken({
+        token: releaseToken,
+        postId,
+        venue,
+        wallet,
+      });
+    } else {
+      await verifyReservationProof({
+        token: String(body.auth?.token ?? ""),
+        signature: String(body.auth?.signature ?? ""),
+        postId,
+        venue,
+        wallet,
+      });
+    }
 
     const record = await getRegistryRecord(postId);
     if (!record) {
