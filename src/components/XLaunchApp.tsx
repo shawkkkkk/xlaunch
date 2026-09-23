@@ -579,7 +579,9 @@ export default function XLaunchApp() {
   const alreadyLive = resolved?.registry?.status === "live";
   const reserved = resolved?.registry?.status === "reserved";
   const rewardTiers: number[] = stonkPricing?.modes?.reward?.transferFeeBps ?? [];
-  const finalWebsite = website.trim() || "https://launchonx.net";
+  const finalWebsite =
+    website.trim() ||
+    (resolved ? `https://launchonx.net/post/${resolved.post.id}` : "https://launchonx.net");
 
   const selectedPair = useMemo(
     () => stonkPairs.find((pair) => pair.mint === stonkPair),
@@ -1847,9 +1849,11 @@ export default function XLaunchApp() {
                     <input
                       value={website}
                       onChange={(event) => setWebsite(event.target.value)}
-                      placeholder="https://launchonx.net"
+                      placeholder={`https://launchonx.net/post/${resolved.post.id}`}
                     />
-                    <small>Optional. Blank defaults permanently to https://launchonx.net.</small>
+                    <small>
+                      Optional. Blank defaults to this token&apos;s canonical XLaunch page.
+                    </small>
                   </label>
 
                   <label>
