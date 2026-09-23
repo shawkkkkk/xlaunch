@@ -1088,10 +1088,10 @@ export default function XLaunchApp() {
           <a className="xlNavPill xlAppear xlScale" href="#launch" onClick={() => setMenuOpen(false)}>
             Launch
           </a>
-          <a className="xlNavPill xlAppear xlSoft" href="/explore" onClick={() => setMenuOpen(false)}>
+          <a className="xlNavPill xlAppear xlSoft" href="https://launchonx.net/explore" onClick={() => setMenuOpen(false)}>
             Explore
           </a>
-          <a className="xlNavPill xlAppear xlScale" href="/profile" onClick={() => setMenuOpen(false)}>
+          <a className="xlNavPill xlAppear xlScale" href="https://launchonx.net/profile" onClick={() => setMenuOpen(false)}>
             Profile
           </a>
           <a
