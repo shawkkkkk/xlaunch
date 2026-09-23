@@ -11,7 +11,8 @@ import {
 
 export const ROBINHOOD_CHAIN_ID = 4663;
 export const PONS_FACTORY = "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e" as Address;
-export const PONS_LAUNCH_AND_BUY = "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948" as Address;\nexport const PONS_FEE_ESCROW = "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e" as Address;
+export const PONS_LAUNCH_AND_BUY = "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948" as Address;
+export const PONS_FEE_ESCROW = "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e" as Address;
 
 export const robinhoodChain = {
   id: ROBINHOOD_CHAIN_ID,
