@@ -14,25 +14,26 @@ export type DonateCharity = {
   isEnabled: boolean;
 };
 
-function headers(requireKey = false) {
+function apiKey(requireKey = false) {
   const key = process.env.DONATE_GG_API_KEY?.trim();
   if (requireKey && !key) {
     throw new Error(
       "Donate.gg charity routing is not configured yet. XLaunch needs a Donate.gg developer API key.",
     );
   }
-  return key ? { "donate-api-key": key } : {};
+  return key || "";
 }
 
 async function donateFetch(path: string, init?: RequestInit, requireKey = false) {
+  const requestHeaders = new Headers(init?.headers);
+  requestHeaders.set("accept", "application/json");
+  if (init?.body) requestHeaders.set("content-type", "application/json");
+  const key = apiKey(requireKey);
+  if (key) requestHeaders.set("donate-api-key", key);
+
   const response = await fetch(BASE + path, {
     ...init,
-    headers: {
-      accept: "application/json",
-      ...(init?.body ? { "content-type": "application/json" } : {}),
-      ...headers(requireKey),
-      ...(init?.headers || {}),
-    },
+    headers: requestHeaders,
     cache: "no-store",
   });
 
