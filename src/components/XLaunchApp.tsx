@@ -368,7 +368,7 @@ export default function XLaunchApp() {
   const alreadyLive = resolved?.registry?.status === "live";
   const reserved = resolved?.registry?.status === "reserved";
   const rewardTiers: number[] = stonkPricing?.modes?.reward?.transferFeeBps ?? [];
-  const finalWebsite = website.trim() || "https://xlaunch.it";
+  const finalWebsite = website.trim() || "https://launchonx.net";
 
   const selectedPair = useMemo(
     () => stonkPairs.find((pair) => pair.mint === stonkPair),
@@ -704,7 +704,7 @@ export default function XLaunchApp() {
             rel="noreferrer"
             onClick={() => setMenuOpen(false)}
           >
-            @xlaunchit
+            @launchonx
           </a>
         </nav>
 
@@ -775,7 +775,7 @@ export default function XLaunchApp() {
         </div>
         <div className="xlStat xlAppear xlStatIn">
           <span className="xlStatIcon">𝕏</span>
-          <span>Launch directly with @xlaunchit</span>
+          <span>Launch directly with @launchonx</span>
         </div>
       </div>
 
@@ -1256,9 +1256,9 @@ export default function XLaunchApp() {
                     <input
                       value={website}
                       onChange={(event) => setWebsite(event.target.value)}
-                      placeholder="https://xlaunch.it"
+                      placeholder="https://launchonx.net"
                     />
-                    <small>Optional. Blank defaults permanently to https://xlaunch.it.</small>
+                    <small>Optional. Blank defaults permanently to https://launchonx.net.</small>
                   </label>
 
                   <label>
@@ -1315,7 +1315,7 @@ export default function XLaunchApp() {
             <div className="review">
               <div><span>X SOURCE</span><b>{sourceX}</b></div>
               <div><span>WEBSITE</span><b>{finalWebsite}</b></div>
-              <div><span>CANONICAL REGISTRY</span><b>https://xlaunch.it/post/{resolved.post.id}</b></div>
+              <div><span>CANONICAL REGISTRY</span><b>https://launchonx.net/post/{resolved.post.id}</b></div>
               <div>
                 <span>DESTINATION</span>
                 <b>
