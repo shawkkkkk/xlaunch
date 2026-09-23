@@ -82,6 +82,16 @@ export async function GET() {
           : "X bot replies disabled",
     },
     {
+      key: "marketIndexer",
+      label: "Explore market indexer",
+      ready: present("XLAUNCH_MARKET_WORKER_SECRET") || present("CRON_SECRET"),
+      requiredForPublicLaunch: false,
+      detail:
+        present("XLAUNCH_MARKET_WORKER_SECRET") || present("CRON_SECRET")
+          ? "Refresh worker protected and available"
+          : "Explore newest works; live market rankings will not refresh automatically",
+    },
+    {
       key: "embeddedWallets",
       label: "Embedded EVM + Solana wallets",
       ready:
