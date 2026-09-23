@@ -335,3 +335,39 @@ export async function setSocialCommandReply(args: {
   `;
   return rows[0] ?? null;
 }
+
+
+export async function getPendingSocialCompletionReplies(limit = 25) {
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 100));
+  return sql()`
+    SELECT
+      command_post_id,
+      source_post_id,
+      author_handle,
+      venue,
+      intent,
+      token_address,
+      tx_hash
+    FROM xlaunch_social_commands
+    WHERE status = 'launched'
+      AND token_address IS NOT NULL
+      AND completion_reply_post_id IS NULL
+    ORDER BY updated_at ASC
+    LIMIT ${safeLimit}
+  `;
+}
+
+export async function setSocialCompletionReply(args: {
+  commandPostId: string;
+  replyPostId: string;
+}) {
+  const rows = await sql()`
+    UPDATE xlaunch_social_commands
+    SET completion_reply_post_id = ${args.replyPostId},
+        updated_at = now()
+    WHERE command_post_id = ${args.commandPostId}
+      AND status = 'launched'
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
