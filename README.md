@@ -77,9 +77,9 @@ XLaunch is designed to support launching from X itself.
 Reply to the exact post you want to tokenize and mention the XLaunch account with an explicit venue, for example:
 
 ```
-@xlaunch launch this on pumpfun as $DOG
-@xlaunch launch this on stonkfun reward mode 2% as $POST
-@xlaunch launch this on pons paired with AAPL, fees to author
+@xlaunchit launch this on pumpfun as $DOG
+@xlaunchit launch this on stonkfun reward mode 2% as $POST
+@xlaunchit launch this on pons paired with AAPL, fees to author
 ```
 
 The reply's parent X status id is the canonical source. The command cannot substitute another source post. Social commands are parsed server-side, but launching remains disabled until the command author has an authenticated linked wallet and the X ingestion service verifies the mention/reply relationship.
@@ -116,3 +116,8 @@ Public bot behavior:
 - The parent post id becomes the canonical XLaunch source.
 - @xlaunchit replies with the verification/signing link.
 - After onchain confirmation, @xlaunchit replies again with venue, ticker, contract address and the canonical XLaunch page.
+
+
+## Production launch
+
+See [PRODUCTION.md](./PRODUCTION.md) for the deployment checklist, required environment variables, database migration, X app/bot setup, worker scheduling and canary procedure.
