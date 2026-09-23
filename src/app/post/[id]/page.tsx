@@ -82,6 +82,20 @@ export default async function PostTokenPage({
         </div>
       </section>
 
+      <section className="sourceDisclosure">
+        <b>SOURCE ≠ ENDORSEMENT</b>
+        <p>
+          This token was created from a public X post. Unless the page explicitly
+          displays verified author-launch status, XLaunch does not claim that the
+          original post author created, endorsed, sponsored, or is affiliated with
+          this token.
+        </p>
+        <div>
+          <a href="/risk">RISK DISCLOSURE →</a>
+          <a href="/terms">TERMS →</a>
+        </div>
+      </section>
+
       <section className="tokenProofGrid">
         <div className="proofPanel">
           <div className="sectionLabel">SOURCE</div>
