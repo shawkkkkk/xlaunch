@@ -129,6 +129,15 @@
   border-color:rgba(235,235,235,.9);
   box-shadow:0 0 0 2px rgba(255,255,255,.08);
 }
+/* Native select popups can use a light OS surface even when the closed control is dark.
+   Give option rows their own contrast instead of inheriting the select's white text. */
+.xlWalletSelect option{
+  background:#fff;
+  color:#111;
+}
+.xlWalletSelect option:checked{
+  color:#111;
+}
 .xlButton{
   position:relative;
   isolation:isolate;
