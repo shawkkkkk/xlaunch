@@ -480,3 +480,118 @@ export async function getWalletActivity(xUserId: string) {
     LIMIT 100
   `;
 }
+
+
+export type ExploreSort = "newest" | "volume" | "trending" | "marketcap";
+
+export async function getExploreTokens(sort: ExploreSort, limit = 50) {
+  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 100));
+
+  if (sort === "newest") {
+    return sql()`
+      SELECT
+        p.post_id, p.post_url, p.venue, p.chain, p.token_name, p.token_symbol,
+        p.token_address, p.fee_route, p.confirmed_at, p.metadata,
+        m.price_usd, m.market_cap_usd, m.volume_24h_usd, m.liquidity_usd,
+        m.price_change_24h_pct, m.trades_24h, m.holders, m.updated_at AS market_updated_at
+      FROM xlaunch_posts p
+      LEFT JOIN xlaunch_market_snapshots m ON m.post_id = p.post_id
+      WHERE p.status = 'live'
+      ORDER BY p.confirmed_at DESC NULLS LAST
+      LIMIT ${safeLimit}
+    `;
+  }
+
+  if (sort === "volume") {
+    return sql()`
+      SELECT
+        p.post_id, p.post_url, p.venue, p.chain, p.token_name, p.token_symbol,
+        p.token_address, p.fee_route, p.confirmed_at, p.metadata,
+        m.price_usd, m.market_cap_usd, m.volume_24h_usd, m.liquidity_usd,
+        m.price_change_24h_pct, m.trades_24h, m.holders, m.updated_at AS market_updated_at
+      FROM xlaunch_posts p
+      JOIN xlaunch_market_snapshots m ON m.post_id = p.post_id
+      WHERE p.status = 'live'
+      ORDER BY m.volume_24h_usd DESC NULLS LAST, p.confirmed_at DESC
+      LIMIT ${safeLimit}
+    `;
+  }
+
+  if (sort === "marketcap") {
+    return sql()`
+      SELECT
+        p.post_id, p.post_url, p.venue, p.chain, p.token_name, p.token_symbol,
+        p.token_address, p.fee_route, p.confirmed_at, p.metadata,
+        m.price_usd, m.market_cap_usd, m.volume_24h_usd, m.liquidity_usd,
+        m.price_change_24h_pct, m.trades_24h, m.holders, m.updated_at AS market_updated_at
+      FROM xlaunch_posts p
+      JOIN xlaunch_market_snapshots m ON m.post_id = p.post_id
+      WHERE p.status = 'live'
+      ORDER BY m.market_cap_usd DESC NULLS LAST, m.volume_24h_usd DESC NULLS LAST
+      LIMIT ${safeLimit}
+    `;
+  }
+
+  return sql()`
+    SELECT
+      p.post_id, p.post_url, p.venue, p.chain, p.token_name, p.token_symbol,
+      p.token_address, p.fee_route, p.confirmed_at, p.metadata,
+      m.price_usd, m.market_cap_usd, m.volume_24h_usd, m.liquidity_usd,
+      m.price_change_24h_pct, m.trades_24h, m.holders, m.updated_at AS market_updated_at,
+      (
+        COALESCE(LN(1 + m.volume_24h_usd), 0) * 0.42 +
+        COALESCE(LN(1 + m.market_cap_usd), 0) * 0.18 +
+        COALESCE(LN(1 + m.trades_24h), 0) * 0.24 +
+        GREATEST(LEAST(COALESCE(m.price_change_24h_pct, 0), 200), -100) / 100 * 0.16
+      ) AS trending_score
+    FROM xlaunch_posts p
+    JOIN xlaunch_market_snapshots m ON m.post_id = p.post_id
+    WHERE p.status = 'live'
+    ORDER BY trending_score DESC NULLS LAST, m.volume_24h_usd DESC NULLS LAST
+    LIMIT ${safeLimit}
+  `;
+}
+
+export async function upsertMarketSnapshot(args: {
+  postId: string;
+  priceUsd?: string | null;
+  marketCapUsd?: string | null;
+  volume24hUsd?: string | null;
+  liquidityUsd?: string | null;
+  priceChange24hPct?: string | null;
+  trades24h?: number | null;
+  holders?: number | null;
+  source?: string | null;
+  sourceUpdatedAt?: string | null;
+}) {
+  const rows = await sql()`
+    INSERT INTO xlaunch_market_snapshots (
+      post_id, price_usd, market_cap_usd, volume_24h_usd, liquidity_usd,
+      price_change_24h_pct, trades_24h, holders, source, source_updated_at
+    ) VALUES (
+      ${args.postId},
+      ${args.priceUsd ?? null},
+      ${args.marketCapUsd ?? null},
+      ${args.volume24hUsd ?? null},
+      ${args.liquidityUsd ?? null},
+      ${args.priceChange24hPct ?? null},
+      ${args.trades24h ?? null},
+      ${args.holders ?? null},
+      ${args.source ?? null},
+      ${args.sourceUpdatedAt ?? null}
+    )
+    ON CONFLICT (post_id) DO UPDATE SET
+      price_usd = EXCLUDED.price_usd,
+      market_cap_usd = EXCLUDED.market_cap_usd,
+      volume_24h_usd = EXCLUDED.volume_24h_usd,
+      liquidity_usd = EXCLUDED.liquidity_usd,
+      price_change_24h_pct = EXCLUDED.price_change_24h_pct,
+      trades_24h = EXCLUDED.trades_24h,
+      holders = EXCLUDED.holders,
+      source = EXCLUDED.source,
+      source_updated_at = EXCLUDED.source_updated_at,
+      updated_at = now()
+    RETURNING *
+  `;
+  return rows[0];
+}
