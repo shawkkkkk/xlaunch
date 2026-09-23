@@ -653,6 +653,7 @@ export default function XLaunchApp() {
         recipientHandle: string | null;
         recipientWallet: string | null;
       };
+      releaseToken: string;
     };
   }
 
@@ -727,6 +728,9 @@ export default function XLaunchApp() {
     }
 
     setLaunching(true);
+    let reservationReleaseToken = "";
+    let reservationWallet = "";
+    let onchainResult: { wallet: string; txHash: string; tokenAddress: string } | null = null;
     try {
       let wallet = activeWallet;
       if (!wallet) {
@@ -748,6 +752,8 @@ export default function XLaunchApp() {
 
       setStatus("Reserving this X post across all XLaunch venues…");
       const reservation = await reserveLaunch(wallet);
+      reservationReleaseToken = reservation.releaseToken;
+      reservationWallet = wallet;
       setStatus(
         `Reserved. Review and sign the ${venue === "pons" ? "Robinhood Chain" : "Solana"} transaction in your wallet…`,
       );
@@ -809,6 +815,7 @@ export default function XLaunchApp() {
         });
       }
 
+      onchainResult = result;
       const recoveryRecord = {
         ...result,
         postId: resolved.post.id,
@@ -848,7 +855,46 @@ export default function XLaunchApp() {
       setStatus("Launch verified. This X post is now permanently assigned in XLaunch.");
       window.location.href = `/post/${resolved.post.id}`;
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Launch failed.");
+      const mayHaveBroadcast = Boolean(
+        (error as Error & { launchBroadcasted?: boolean })?.launchBroadcasted,
+      );
+
+      if (
+        reservationReleaseToken &&
+        reservationWallet &&
+        !onchainResult &&
+        !mayHaveBroadcast &&
+        resolved
+      ) {
+        try {
+          const releaseResponse = await fetch("/api/registry/release", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              postId: resolved.post.id,
+              venue,
+              wallet: reservationWallet,
+              releaseToken: reservationReleaseToken,
+            }),
+          });
+          if (releaseResponse.ok) {
+            setResolved((current) => current ? { ...current, registry: null } : current);
+            setStatus(
+              `${error instanceof Error ? error.message : "Launch failed."} Reservation released automatically; you can retry immediately.`,
+            );
+          } else {
+            setStatus(error instanceof Error ? error.message : "Launch failed.");
+          }
+        } catch {
+          setStatus(error instanceof Error ? error.message : "Launch failed.");
+        }
+      } else {
+        setStatus(
+          mayHaveBroadcast && !onchainResult
+            ? `${error instanceof Error ? error.message : "Launch status uncertain."} The reservation is being kept temporarily because the transaction may have been broadcast.`
+            : error instanceof Error ? error.message : "Launch failed.",
+        );
+      }
     } finally {
       setLaunching(false);
     }
