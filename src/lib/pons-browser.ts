@@ -22,9 +22,17 @@ type Eip1193Provider = {
   isMetaMask?: boolean;
   isRabby?: boolean;
   isCoinbaseWallet?: boolean;
+  isTrust?: boolean;
+  isBraveWallet?: boolean;
 };
 
-export type EvmWalletChoice = "metamask" | "rabby" | "coinbase" | "browser";
+export type EvmWalletChoice = string;
+
+type EvmWalletOption = {
+  id: EvmWalletChoice;
+  label: string;
+  available: boolean;
+};
 
 declare global {
   interface Window {
@@ -63,57 +71,128 @@ const publicClient = () =>
     transport: http(robinhoodChain.rpcUrls.default.http[0]),
   });
 
+const eip6963Providers = new Map<string, { info: any; provider: Eip1193Provider }>();
+let eip6963Listening = false;
+
+const EVM_CATALOGUE = [
+  { id: "metamask", label: "MetaMask" },
+  { id: "rabby", label: "Rabby" },
+  { id: "coinbase", label: "Coinbase Wallet" },
+  { id: "okx", label: "OKX Wallet" },
+  { id: "trust", label: "Trust Wallet" },
+  { id: "brave", label: "Brave Wallet" },
+  { id: "rainbow", label: "Rainbow" },
+  { id: "zerion", label: "Zerion" },
+  { id: "frame", label: "Frame" },
+] as const;
+
+function ensureEip6963Discovery() {
+  if (typeof window === "undefined") return;
+  if (!eip6963Listening) {
+    window.addEventListener("eip6963:announceProvider", ((event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.info?.uuid && detail?.provider?.request) {
+        eip6963Providers.set(detail.info.uuid, detail);
+      }
+    }) as EventListener);
+    eip6963Listening = true;
+  }
+  window.dispatchEvent(new Event("eip6963:requestProvider"));
+}
+
 function injectedProviders(): Eip1193Provider[] {
-  if (typeof window === "undefined" || !window.ethereum) return [];
-  const providers = window.ethereum.providers?.length
-    ? window.ethereum.providers
-    : [window.ethereum];
+  if (typeof window === "undefined") return [];
+  const ethereum = window.ethereum;
+  const providers = ethereum?.providers?.length
+    ? ethereum.providers
+    : ethereum
+      ? [ethereum]
+      : [];
   return Array.from(new Set(providers));
 }
 
-export function availableEvmWallets(): Array<{ id: EvmWalletChoice; label: string }> {
+function legacyNamedProvider(choice: EvmWalletChoice): Eip1193Provider | undefined {
+  if (typeof window === "undefined") return undefined;
   const providers = injectedProviders();
-  const wallets: Array<{ id: EvmWalletChoice; label: string }> = [];
-  if (providers.some((p) => p.isMetaMask && !p.isRabby)) {
-    wallets.push({ id: "metamask", label: "MetaMask" });
+  const extra = window as unknown as {
+    okxwallet?: Eip1193Provider;
+    trustwallet?: Eip1193Provider;
+  };
+
+  switch (choice) {
+    case "metamask":
+      return providers.find((p) => p.isMetaMask && !p.isRabby);
+    case "rabby":
+      return providers.find((p) => p.isRabby);
+    case "coinbase":
+      return providers.find((p) => p.isCoinbaseWallet);
+    case "okx":
+      return extra.okxwallet;
+    case "trust":
+      return extra.trustwallet || providers.find((p) => p.isTrust);
+    case "brave":
+      return providers.find((p) => p.isBraveWallet);
+    case "browser":
+      return window.ethereum;
+    default:
+      return undefined;
   }
-  if (providers.some((p) => p.isRabby)) {
-    wallets.push({ id: "rabby", label: "Rabby" });
-  }
-  if (providers.some((p) => p.isCoinbaseWallet)) {
-    wallets.push({ id: "coinbase", label: "Coinbase Wallet" });
+}
+
+export function availableEvmWallets(): EvmWalletOption[] {
+  ensureEip6963Discovery();
+
+  const options: EvmWalletOption[] = [];
+  const seen = new Set<string>();
+
+  for (const [uuid, item] of eip6963Providers) {
+    const name = String(item.info?.name || "EVM Wallet");
+    seen.add(name.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    options.push({
+      id: `eip6963:${uuid}`,
+      label: name,
+      available: true,
+    });
   }
 
-  const known = providers.filter(
-    (p) => (p.isMetaMask && !p.isRabby) || p.isRabby || p.isCoinbaseWallet,
-  );
-  if (providers.some((p) => !known.includes(p))) {
-    wallets.push({ id: "browser", label: "Browser EVM wallet" });
+  for (const item of EVM_CATALOGUE) {
+    const key = item.label.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (seen.has(key)) continue;
+    const available = Boolean(legacyNamedProvider(item.id));
+    options.push({
+      id: item.id,
+      label: available ? item.label : `${item.label} · not detected`,
+      available,
+    });
   }
-  return wallets;
+
+  const generic = window.ethereum;
+  if (generic && !options.some((item) => item.available && item.id === "browser")) {
+    const known = EVM_CATALOGUE.map((item) => legacyNamedProvider(item.id)).filter(Boolean);
+    if (!known.includes(generic)) {
+      options.push({ id: "browser", label: "Other browser EVM wallet", available: true });
+    }
+  }
+
+  return options;
 }
 
 function provider(choice?: EvmWalletChoice) {
-  const providers = injectedProviders();
-  if (!providers.length) {
-    throw new Error("No EVM wallet found. Install MetaMask, Rabby, Coinbase Wallet, or another EVM wallet.");
+  ensureEip6963Discovery();
+
+  if (!choice) throw new Error("Choose an EVM wallet before connecting.");
+
+  if (choice.startsWith("eip6963:")) {
+    const uuid = choice.slice("eip6963:".length);
+    const announced = eip6963Providers.get(uuid)?.provider;
+    if (announced) return announced;
   }
 
-  if (!choice) return providers[0];
-
-  const selected =
-    choice === "metamask"
-      ? providers.find((p) => p.isMetaMask && !p.isRabby)
-      : choice === "rabby"
-        ? providers.find((p) => p.isRabby)
-        : choice === "coinbase"
-          ? providers.find((p) => p.isCoinbaseWallet)
-          : providers.find(
-              (p) => !(p.isMetaMask && !p.isRabby) && !p.isRabby && !p.isCoinbaseWallet,
-            );
-
+  const selected = legacyNamedProvider(choice);
   if (!selected) {
-    throw new Error(`The selected EVM wallet (${choice}) is not available in this browser.`);
+    throw new Error(
+      "That wallet is not detected in this browser. Install/enable it, refresh XLaunch, then try again.",
+    );
   }
   return selected;
 }
