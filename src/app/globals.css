@@ -54,6 +54,15 @@
 .xlLogoMark{width:22px;height:22px;display:grid;place-items:center}
 .xlLogoMark svg{width:100%;height:100%}
 .xlNav{
+  height:auto;
+  border:0;
+  padding:0;
+  position:static;
+  top:auto;
+  z-index:auto;
+  background:transparent;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
   display:flex;
   align-items:center;
   justify-self:center;
