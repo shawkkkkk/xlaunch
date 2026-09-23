@@ -14,7 +14,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { PONS_FACTORY, PONS_LAUNCH_AND_BUY, robinhoodChain } from "@/lib/pons";
+import { PONS_FACTORY, PONS_FEE_ESCROW, PONS_LAUNCH_AND_BUY, robinhoodChain } from "@/lib/pons";
 
 type Eip1193Provider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>;
@@ -367,5 +367,86 @@ export async function launchOnPons(input: PonsLaunchInput) {
     txHash: hash,
     tokenAddress: launch.args.token as Address,
     curveAddress: launch.args.curve as Address,
+  };
+}
+
+
+const feeEscrowAbi = parseAbi([
+  "function balanceOf(address recipient) view returns (uint256)",
+  "function balanceOfToken(address recipient,address token) view returns (uint256)",
+  "function claim()",
+  "function claimToken(address token)",
+]);
+
+export async function claimPonsCreatorFees(args: {
+  pairToken?: string | null;
+  expectedRecipient?: string | null;
+}) {
+  const account = await connectRobinhoodWallet();
+  if (
+    args.expectedRecipient &&
+    account.toLowerCase() !== args.expectedRecipient.toLowerCase()
+  ) {
+    throw new Error(
+      "Connect the Pons creator-fee recipient wallet shown on the token before claiming.",
+    );
+  }
+
+  const pair = normalizePair(args.pairToken || "ETH");
+  const client = publicClient();
+  const owed =
+    pair === zeroAddress
+      ? await client.readContract({
+          address: PONS_FEE_ESCROW,
+          abi: feeEscrowAbi,
+          functionName: "balanceOf",
+          args: [account],
+        })
+      : await client.readContract({
+          address: PONS_FEE_ESCROW,
+          abi: feeEscrowAbi,
+          functionName: "balanceOfToken",
+          args: [account, pair],
+        });
+
+  if (owed <= 0n) {
+    throw new Error(
+      "No swept Pons creator fees are currently claimable for this wallet and quote asset.",
+    );
+  }
+
+  const p = await provider();
+  const wallet = createWalletClient({
+    account,
+    chain: robinhoodChain,
+    transport: custom(p as never),
+  });
+
+  const hash =
+    pair === zeroAddress
+      ? await wallet.writeContract({
+          account,
+          address: PONS_FEE_ESCROW,
+          abi: feeEscrowAbi,
+          functionName: "claim",
+        })
+      : await wallet.writeContract({
+          account,
+          address: PONS_FEE_ESCROW,
+          abi: feeEscrowAbi,
+          functionName: "claimToken",
+          args: [pair],
+        });
+
+  const receipt = await client.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") {
+    throw new Error("Pons fee claim reverted.");
+  }
+
+  return {
+    wallet: account,
+    txHash: hash,
+    amountRaw: owed.toString(),
+    pairToken: pair,
   };
 }
