@@ -288,21 +288,47 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
   transaction.lastValidBlockHeight = latest.lastValidBlockHeight;
 
   transaction.partialSign(mintKeypair);
-  const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
 
-  const confirmation = await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
-    "confirmed",
-  );
-  if (confirmation.value.err) throw new Error("StonkFun launch transaction failed.");
+  let signed: Transaction;
+  try {
+    signed = await wallet.signTransaction(transaction);
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("Wallet signature failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = false;
+    throw tagged;
+  }
+
+  let signature: string;
+  try {
+    signature = await connection.sendRawTransaction(signed.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("StonkFun broadcast failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+    throw tagged;
+  }
+
+  try {
+    const confirmation = await connection.confirmTransaction(
+      {
+        signature,
+        blockhash: latest.blockhash,
+        lastValidBlockHeight: latest.lastValidBlockHeight,
+      },
+      "confirmed",
+    );
+    if (confirmation.value.err) {
+      const failed = new Error("StonkFun launch transaction failed.");
+      (failed as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+      throw failed;
+    }
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("StonkFun confirmation failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+    throw tagged;
+  }
 
   return {
     wallet: payer.toBase58(),
