@@ -15,13 +15,18 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "viem": "^2.38.0",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "@pump-fun/pump-sdk": "2.0.0",
+    "@solana/web3.js": "1.99.0",
+    "@solana/spl-token": "0.4.15",
+    "bn.js": "5.2.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@types/bn.js": "5.2.0"
   }
 }
