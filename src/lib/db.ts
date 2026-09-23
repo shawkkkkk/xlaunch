@@ -15,7 +15,7 @@ export type RegistryRecord = {
   token_name: string;
   token_symbol: string;
   metadata: Record<string, unknown>;
-  fee_route: "author_xmoney" | "developer" | "custom" | "holder_rewards";
+  fee_route: "author_xmoney" | "developer" | "custom" | "charity" | "holder_rewards";
   fee_recipient_handle: string | null;
   fee_recipient_wallet: string | null;
   fee_routing_status: "requested" | "onchain_verified" | "not_applicable";
@@ -44,7 +44,7 @@ export async function reservePost(args: {
   tokenName: string;
   tokenSymbol: string;
   metadata: Record<string, unknown>;
-  feeRoute: "author_xmoney" | "developer" | "custom" | "holder_rewards";
+  feeRoute: "author_xmoney" | "developer" | "custom" | "charity" | "holder_rewards";
   feeRecipientHandle?: string | null;
   feeRecipientWallet?: string | null;
   feeRoutingStatus?: "requested" | "onchain_verified" | "not_applicable";
