@@ -30,32 +30,11 @@ import {
   getPdaPlatformVault,
   initializeWithToken2022,
 } from "@raydium-io/raydium-sdk-v2";
-import { connectSolanaWallet } from "@/lib/pump-browser";
-
-type InjectedSolanaProvider = {
-  publicKey?: { toString(): string } | null;
-  connect: () => Promise<{ publicKey: { toString(): string } }>;
-  signTransaction: (transaction: Transaction) => Promise<Transaction>;
-};
-
-function provider(): InjectedSolanaProvider {
-  if (typeof window === "undefined") {
-    throw new Error("Solana wallet is unavailable.");
-  }
-  const browser = window as unknown as {
-    solana?: InjectedSolanaProvider;
-    phantom?: { solana?: InjectedSolanaProvider };
-    backpack?: { solana?: InjectedSolanaProvider };
-  };
-  const wallet =
-    browser.phantom?.solana ||
-    browser.backpack?.solana ||
-    browser.solana;
-  if (!wallet) {
-    throw new Error("No Solana wallet found. Install Phantom or Backpack.");
-  }
-  return wallet;
-}
+import {
+  connectSolanaWallet,
+  solanaProvider,
+  type SolanaWalletChoice,
+} from "@/lib/pump-browser";
 
 function rpcUrl() {
   return process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
@@ -100,11 +79,12 @@ export type StonkFunLaunchInput = {
   rewardBps: number;
   feeRecipientWallet?: string | null;
   openingBuy?: string;
+  walletProvider?: SolanaWalletChoice;
 };
 
 export async function launchOnStonkFun(input: StonkFunLaunchInput) {
-  const wallet = provider();
-  const payer = await connectSolanaWallet();
+  const wallet = solanaProvider(input.walletProvider);
+  const payer = await connectSolanaWallet(input.walletProvider);
   const quoteMint = new PublicKey(input.quoteMint);
   const mintKeypair = Keypair.generate();
   const mint = mintKeypair.publicKey;
