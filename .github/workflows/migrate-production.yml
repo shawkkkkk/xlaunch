@@ -1,0 +1,43 @@
+name: Production Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type MIGRATE to apply db/migrations/001_production.sql"
+        required: true
+        type: string
+
+concurrency:
+  group: xlaunch-production-database
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.confirm == 'MIGRATE' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply production migration
+        env:
+          DATABASE_URL: ${{ secrets.XLAUNCH_DATABASE_URL }}
+        run: |
+          test -n "$DATABASE_URL"
+          psql "$DATABASE_URL"             --set ON_ERROR_STOP=1             --file db/migrations/001_production.sql
+
+      - name: Verify required tables
+        env:
+          DATABASE_URL: ${{ secrets.XLAUNCH_DATABASE_URL }}
+        run: |
+          required="xlaunch_posts xlaunch_fee_events xlaunch_social_accounts xlaunch_social_commands xlaunch_bot_state xlaunch_profiles xlaunch_wallet_activity xlaunch_market_snapshots"
+          for table in $required; do
+            present=$(psql "$DATABASE_URL" -Atc "SELECT to_regclass('public.' || '$table') IS NOT NULL;")
+            test "$present" = "t" || { echo "Missing table: $table"; exit 1; }
+          done
+          echo "XLaunch production schema verified."
