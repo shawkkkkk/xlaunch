@@ -27,7 +27,7 @@ function authorized(request: NextRequest) {
 }
 
 function siteOrigin() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "https://xlaunch.it").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://launchonx.net").replace(/\/$/, "");
 }
 
 function venueName(venue: string) {
