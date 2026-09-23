@@ -81,3 +81,10 @@ CREATE INDEX IF NOT EXISTS xlaunch_social_commands_source_idx
 
 CREATE INDEX IF NOT EXISTS xlaunch_social_commands_author_idx
   ON xlaunch_social_commands(x_user_id, created_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS xlaunch_bot_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
