@@ -316,9 +316,10 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
 export async function claimStonkFunCreatorFees(args: {
   quoteMint: string;
   expectedRecipient?: string | null;
+  walletProvider?: SolanaWalletChoice;
 }) {
-  const wallet = provider();
-  const creator = await connectSolanaWallet();
+  const wallet = solanaProvider(args.walletProvider);
+  const creator = await connectSolanaWallet(args.walletProvider);
   if (
     args.expectedRecipient &&
     creator.toBase58() !== args.expectedRecipient
