@@ -6,7 +6,7 @@ import { createSocialConfirmationToken } from "@/lib/social-token";
 export const runtime = "nodejs";
 
 function siteOrigin() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || "https://xlaunch.it").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_SITE_URL || "https://launchonx.net").replace(/\/$/, "");
 }
 
 export async function POST(request: NextRequest) {
