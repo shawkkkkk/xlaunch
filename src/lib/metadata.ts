@@ -82,7 +82,9 @@ export function buildLaunchMetadata(input: TokenMetadataInput) {
       twitter,
       telegram: input.telegram?.trim() || "",
       discord: input.discord?.trim() || "",
-      website: resolveWebsite(input.website),
+      website: input.website?.trim()
+        ? resolveWebsite(input.website)
+        : canonicalPostPage(input.postId),
       farcaster: input.farcaster?.trim() || "",
     },
   };
