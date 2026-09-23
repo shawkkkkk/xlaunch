@@ -300,3 +300,23 @@ export async function updateSocialCommandStatus(args: {
   `;
   return rows[0] ?? null;
 }
+
+
+export async function getBotState(key: string) {
+  const rows = await sql()`
+    SELECT value FROM xlaunch_bot_state WHERE key = ${key} LIMIT 1
+  `;
+  return rows[0] ? String((rows[0] as { value: string }).value) : null;
+}
+
+export async function setBotState(key: string, value: string) {
+  const rows = await sql()`
+    INSERT INTO xlaunch_bot_state (key, value)
+    VALUES (${key}, ${value})
+    ON CONFLICT (key) DO UPDATE SET
+      value = EXCLUDED.value,
+      updated_at = now()
+    RETURNING *
+  `;
+  return rows[0];
+}
