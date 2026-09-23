@@ -153,6 +153,8 @@ export default function XLaunchApp() {
   const [launching, setLaunching] = useState(false);
   const [solWallet, setSolWallet] = useState("");
   const [evmWallet, setEvmWallet] = useState("");
+  const [socialCommandId, setSocialCommandId] = useState("");
+  const [socialToken, setSocialToken] = useState("");
   const socialPrefillApplied = useRef(false);
 
   useEffect(() => {
@@ -161,6 +163,8 @@ export default function XLaunchApp() {
     const params = new URLSearchParams(window.location.search);
     const postId = params.get("post");
     const venueParam = params.get("venue");
+    setSocialCommandId(params.get("social") || "");
+    setSocialToken(params.get("socialToken") || "");
     if (!postId || !/^\d+$/.test(postId)) return;
     if (!["stonkfun", "pons", "pumpfun"].includes(String(venueParam))) return;
 
@@ -572,6 +576,28 @@ export default function XLaunchApp() {
 
       setStatus("Onchain transaction confirmed. Verifying the canonical assignment…");
       await confirmLaunch(result);
+
+      if (socialCommandId && socialToken) {
+        const socialResponse = await fetch("/api/social/complete", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            commandPostId: socialCommandId,
+            token: socialToken,
+            postId: resolved.post.id,
+            tokenAddress: result.tokenAddress,
+            txHash: result.txHash,
+          }),
+        });
+        if (!socialResponse.ok) {
+          const socialBody = await socialResponse.json().catch(() => ({}));
+          throw new Error(
+            socialBody.error ||
+              "Token launched, but the X command could not be marked complete.",
+          );
+        }
+      }
+
       setStatus("Launch verified. This X post is now permanently assigned in XLaunch.");
       window.location.href = `/post/${resolved.post.id}`;
     } catch (error) {
