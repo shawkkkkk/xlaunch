@@ -115,6 +115,8 @@ export async function validatePonsPair(pair: string, launchConfigId = 0) {
     symbol,
     name,
     decimals: Number(decimals),
+    phantomQuoteRaw: economics[0].toString(),
+    graduationThresholdRaw: economics[1].toString(),
     phantomQuote: formatUnits(economics[0], economics[2]),
     graduationThreshold: formatUnits(economics[1], economics[2]),
     expectedEconomics,
