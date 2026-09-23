@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   getBotState,
+  getPendingSocialCompletionReplies,
   getRegistryRecord,
   getSocialAccount,
   getSocialCommand,
   setBotState,
   setSocialCommandReply,
+  setSocialCompletionReply,
   upsertSocialCommand,
 } from "@/lib/db";
 import { parseSocialLaunchCommand } from "@/lib/social-command";
@@ -40,6 +42,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const completionResults: Array<Record<string, unknown>> = [];
+    const pendingCompletions = await getPendingSocialCompletionReplies(25);
+
+    for (const item of pendingCompletions as any[]) {
+      const intent = (item.intent || {}) as { symbol?: string };
+      const ticker = intent.symbol ? ` ${String(intent.symbol).toUpperCase()}` : "";
+      const reply = await postXReply({
+        replyToPostId: String(item.command_post_id),
+        text:
+          `Launched${ticker} on ${venueName(String(item.venue))}.\n\n` +
+          `CA: ${String(item.token_address)}\n` +
+          `${siteOrigin()}/post/${String(item.source_post_id)}`,
+      });
+      await setSocialCompletionReply({
+        commandPostId: String(item.command_post_id),
+        replyPostId: reply.id,
+      });
+      completionResults.push({
+        commandPostId: String(item.command_post_id),
+        replyPostId: reply.id,
+        tokenAddress: String(item.token_address),
+      });
+    }
+
     const sinceId = await getBotState("x_mentions_since_id");
     const { mentions, users } = await fetchXLaunchMentions(sinceId);
     const ordered = [...mentions].sort((a, b) => {
@@ -154,6 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
+      completionReplies: completionResults,
       processed: ordered.length,
       sinceId: highest ? highest.toString() : sinceId,
       results,
