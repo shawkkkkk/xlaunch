@@ -15,7 +15,7 @@ A public launch should not be enabled until `GET /api/readiness` returns:
 The hard launch requirements are:
 
 - `DATABASE_URL`
-- `NEXT_PUBLIC_SITE_URL=https://xlaunch.it`
+- `NEXT_PUBLIC_SITE_URL=https://launchonx.net`
 - a 32+ character `XLAUNCH_AUTH_SECRET`
 - Solana RPC via `SOLANA_RPC_URL` / `NEXT_PUBLIC_SOLANA_RPC_URL`
 - Robinhood Chain RPC via `ROBINHOOD_RPC_URL` / `NEXT_PUBLIC_ROBINHOOD_RPC_URL`
@@ -55,7 +55,7 @@ Create/configure an X developer application used for XLaunch account sign-in.
 Production callback:
 
 ```
-https://xlaunch.it/api/x/oauth/callback
+https://launchonx.net/api/x/oauth/callback
 ```
 
 Set:
@@ -66,12 +66,12 @@ Set:
 
 The normal account sign-in requests `tweet.read users.read`.
 
-## 4. @xlaunchit automation
+## 4. @launchonx automation
 
 Public bot:
 
 ```
-@xlaunchit
+@launchonx
 ```
 
 Human managing account:
@@ -80,7 +80,7 @@ Human managing account:
 @ShayanelH
 ```
 
-In X account settings, enable the automated-account label for **@xlaunchit** and connect **@ShayanelH** as its managing account.
+In X account settings, enable the automated-account label for **@launchonx** and connect **@ShayanelH** as its managing account.
 
 The bot needs a **user-context** X access token that can:
 
@@ -110,7 +110,7 @@ A GitHub Actions fallback exists at `.github/workflows/workers.yml`.
 
 To enable it, add repository secrets:
 
-- `XLAUNCH_PROD_URL` = `https://xlaunch.it`
+- `XLAUNCH_PROD_URL` = `https://launchonx.net`
 - `XLAUNCH_CRON_SECRET`
 
 and repository variable:
@@ -168,7 +168,7 @@ Deploy the GitHub repository `shawkkkkk/xlaunch` as a Next.js project.
 Set the production domain to:
 
 ```
-xlaunch.it
+launchonx.net
 ```
 
 Set all required environment variables in the production environment. Do not commit secrets to Git.
@@ -176,10 +176,10 @@ Set all required environment variables in the production environment. Do not com
 After deployment check:
 
 ```
-https://xlaunch.it/api/health
-https://xlaunch.it/api/readiness
-https://xlaunch.it/explore
-https://xlaunch.it/profile
+https://launchonx.net/api/health
+https://launchonx.net/api/readiness
+https://launchonx.net/explore
+https://launchonx.net/profile
 ```
 
 ## 9. Mainnet canary
@@ -196,7 +196,7 @@ Do not announce broad launch access before this sequence passes.
 8. Exercise an expired reservation and confirm it becomes available again.
 9. Test a custom fee wallet and verify the public route matches onchain state.
 10. Only after the relevant settlement infrastructure is funded/operational, test an X Money or charity route.
-11. Test an @xlaunchit reply command end-to-end: mention → X verification → wallet proof → signature → launch → final bot reply.
+11. Test an @launchonx reply command end-to-end: mention → X verification → wallet proof → signature → launch → final bot reply.
 12. Run the market refresh worker and confirm the new token appears under Explore when the market-data source indexes it.
 
 Use controlled amounts for canaries.
@@ -207,7 +207,7 @@ Use controlled amounts for canaries.
 - `/api/readiness` shows all features intended for day one as ready.
 - no secret appears in client JS or repository history.
 - X OAuth callback uses the production domain.
-- @xlaunchit is labeled as automated and linked to @ShayanelH.
+- @launchonx is labeled as automated and linked to @ShayanelH.
 - database backups / Neon recovery are available.
 - RPC capacity is sufficient for traffic.
 - workers are running.
