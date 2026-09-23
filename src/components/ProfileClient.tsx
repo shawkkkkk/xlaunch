@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import PrivyWalletPanel from "@/components/PrivyWalletPanel";
 
 type Profile = {
   x_user_id: string;
@@ -226,29 +227,37 @@ export default function ProfileClient({
               One EVM wallet works across Ethereum and Robinhood Chain. A separate
               Solana wallet covers StonkFun and Pump.fun.
             </p>
-            <div className="profileWalletGrid">
-              <WalletCard
-                title="EVM WALLET"
-                networks="ETHEREUM + ROBINHOOD CHAIN"
-                address={profile.evm_wallet_address}
-                providerReady={walletProviderConfigured}
+            {walletProviderConfigured ? (
+              <PrivyWalletPanel
+                xHandle={profile.x_handle}
+                initialEvmAddress={profile.evm_wallet_address}
+                initialSolanaAddress={profile.solana_wallet_address}
               />
-              <WalletCard
-                title="SOLANA WALLET"
-                networks="SOLANA"
-                address={profile.solana_wallet_address}
-                providerReady={walletProviderConfigured}
-              />
-            </div>
-            <div className="keySafety">
-              <b>PRIVATE KEY EXPORT</b>
-              <p>
-                Export is an explicit user action. XLaunch should never log, store,
-                transmit or display the private key through its own backend. The final
-                provider integration will open the wallet provider&apos;s isolated
-                export/recovery UI after re-authentication.
-              </p>
-            </div>
+            ) : (
+              <>
+                <div className="profileWalletGrid">
+                  <WalletCard
+                    title="EVM WALLET"
+                    networks="ETHEREUM + ROBINHOOD CHAIN"
+                    address={profile.evm_wallet_address}
+                    providerReady={false}
+                  />
+                  <WalletCard
+                    title="SOLANA WALLET"
+                    networks="SOLANA"
+                    address={profile.solana_wallet_address}
+                    providerReady={false}
+                  />
+                </div>
+                <div className="keySafety">
+                  <b>PRIVY SETUP REQUIRED</b>
+                  <p>
+                    Add NEXT_PUBLIC_PRIVY_APP_ID and PRIVY_APP_SECRET to enable
+                    embedded-wallet creation and export.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
 
