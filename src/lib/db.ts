@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 
-export type RegistryVenue = "stonkfun" | "pons";
+export type RegistryVenue = "stonkfun" | "pons" | "pumpfun";
 export type RegistryChain = "solana" | "robinhood";
 
 export type RegistryRecord = {
@@ -15,6 +15,10 @@ export type RegistryRecord = {
   token_name: string;
   token_symbol: string;
   metadata: Record<string, unknown>;
+  fee_route: "author_xmoney" | "developer" | "custom" | "holder_rewards";
+  fee_recipient_handle: string | null;
+  fee_recipient_wallet: string | null;
+  fee_routing_status: "requested" | "onchain_verified" | "not_applicable";
   token_address: string | null;
   tx_hash: string | null;
   created_at: string;
@@ -40,13 +44,18 @@ export async function reservePost(args: {
   tokenName: string;
   tokenSymbol: string;
   metadata: Record<string, unknown>;
+  feeRoute: "author_xmoney" | "developer" | "custom" | "holder_rewards";
+  feeRecipientHandle?: string | null;
+  feeRecipientWallet?: string | null;
+  feeRoutingStatus?: "requested" | "onchain_verified" | "not_applicable";
   ttlMinutes?: number;
 }) {
   const ttl = Math.max(1, Math.min(args.ttlMinutes ?? 15, 30));
   const rows = await sql()`
     INSERT INTO xlaunch_posts (
       post_id, source_key, post_url, status, venue, chain, reserver_wallet,
-      reservation_expires_at, token_name, token_symbol, metadata
+      reservation_expires_at, token_name, token_symbol, metadata,
+      fee_route, fee_recipient_handle, fee_recipient_wallet, fee_routing_status
     ) VALUES (
       ${args.postId},
       ${`x:${args.postId}`},
@@ -58,7 +67,11 @@ export async function reservePost(args: {
       now() + (${ttl} * interval '1 minute'),
       ${args.tokenName},
       ${args.tokenSymbol},
-      ${JSON.stringify(args.metadata)}::jsonb
+      ${JSON.stringify(args.metadata)}::jsonb,
+      ${args.feeRoute},
+      ${args.feeRecipientHandle ?? null},
+      ${args.feeRecipientWallet ?? null},
+      ${args.feeRoutingStatus ?? "requested"}
     )
     ON CONFLICT (post_id) DO UPDATE SET
       post_url = EXCLUDED.post_url,
@@ -69,7 +82,11 @@ export async function reservePost(args: {
       reservation_expires_at = EXCLUDED.reservation_expires_at,
       token_name = EXCLUDED.token_name,
       token_symbol = EXCLUDED.token_symbol,
-      metadata = EXCLUDED.metadata
+      metadata = EXCLUDED.metadata,
+      fee_route = EXCLUDED.fee_route,
+      fee_recipient_handle = EXCLUDED.fee_recipient_handle,
+      fee_recipient_wallet = EXCLUDED.fee_recipient_wallet,
+      fee_routing_status = EXCLUDED.fee_routing_status
     WHERE
       xlaunch_posts.status = 'reserved'
       AND (
@@ -107,4 +124,30 @@ export async function confirmReservedPost(args: {
     RETURNING *
   `;
   return (rows[0] as RegistryRecord | undefined) ?? null;
+}
+
+
+export async function markFeeRoutingVerified(args: {
+  postId: string;
+  feeRecipientWallet?: string | null;
+}) {
+  const rows = await sql()`
+    UPDATE xlaunch_posts
+    SET fee_routing_status = 'onchain_verified',
+        fee_recipient_wallet = COALESCE(${args.feeRecipientWallet ?? null}, fee_recipient_wallet)
+    WHERE post_id = ${args.postId}
+      AND status = 'live'
+    RETURNING *
+  `;
+  return (rows[0] as RegistryRecord | undefined) ?? null;
+}
+
+export async function getFeeEvents(postId: string) {
+  return sql()`
+    SELECT id, post_id, event_type, asset, amount, usd_amount, chain_tx_hash, proof_url, note, created_at
+    FROM xlaunch_fee_events
+    WHERE post_id = ${postId}
+    ORDER BY created_at DESC
+    LIMIT 100
+  `;
 }
