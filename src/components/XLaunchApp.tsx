@@ -60,6 +60,18 @@ type PumpCaps = {
   };
 };
 
+type DonateCharity = {
+  id: string;
+  slug: string;
+  name: string;
+  logo: string;
+  website: string;
+  mission: string;
+  country: string;
+  status: string;
+  isEnabled: boolean;
+};
+
 type PonsCaps = {
   launchEnabled: boolean;
   launchFeeEth: string;
@@ -126,8 +138,15 @@ export default function XLaunchApp() {
   const [pumpCreatorFeeBps, setPumpCreatorFeeBps] = useState(0);
   const [pumpOpeningBuy, setPumpOpeningBuy] = useState("0");
 
-  const [feeRoute, setFeeRoute] = useState<"author_xmoney" | "developer" | "custom">("developer");
+  const [feeRoute, setFeeRoute] = useState<
+    "author_xmoney" | "developer" | "custom" | "charity"
+  >("developer");
   const [customFeeWallet, setCustomFeeWallet] = useState("");
+  const [charityQuery, setCharityQuery] = useState("");
+  const [charities, setCharities] = useState<DonateCharity[]>([]);
+  const [selectedCharity, setSelectedCharity] = useState<DonateCharity | null>(null);
+  const [charitySearching, setCharitySearching] = useState(false);
+  const [charityRoutingConfigured, setCharityRoutingConfigured] = useState<boolean | null>(null);
 
   const [advanced, setAdvanced] = useState(false);
   const [status, setStatus] = useState("");
@@ -157,6 +176,13 @@ export default function XLaunchApp() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (venue !== "pumpfun" && feeRoute === "charity") {
+      setFeeRoute("developer");
+      setSelectedCharity(null);
+    }
+  }, [venue, feeRoute]);
 
   useEffect(() => {
     if (!stonkPair) return;
@@ -195,6 +221,29 @@ export default function XLaunchApp() {
       setResolveError(error instanceof Error ? error.message : "Could not resolve post.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function searchCharities() {
+    const term = charityQuery.trim();
+    if (!term) {
+      setCharities([]);
+      return;
+    }
+
+    setCharitySearching(true);
+    try {
+      const response = await fetch(
+        `/api/donate/charities?term=${encodeURIComponent(term)}`,
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Charity search failed.");
+      setCharities(Array.isArray(data.charities) ? data.charities : []);
+      setCharityRoutingConfigured(Boolean(data.routingConfigured));
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Charity search failed.");
+    } finally {
+      setCharitySearching(false);
     }
   }
 
@@ -318,6 +367,7 @@ export default function XLaunchApp() {
         farcaster,
         feeRoute,
         customFeeWallet,
+        charityId: feeRoute === "charity" ? selectedCharity?.id || "" : "",
         authorHandle: resolved.post.handle,
         stonkMode,
         pumpHolderReward,
@@ -395,6 +445,10 @@ export default function XLaunchApp() {
     }
     if (!name.trim() || !symbol.trim()) {
       setStatus("Token name and ticker are required.");
+      return;
+    }
+    if (feeRoute === "charity" && venue === "pumpfun" && !selectedCharity) {
+      setStatus("Select a Donate.gg charity before launching.");
       return;
     }
 
@@ -858,20 +912,98 @@ export default function XLaunchApp() {
                   <select
                     value={feeRoute}
                     onChange={(event) =>
-                      setFeeRoute(event.target.value as "author_xmoney" | "developer" | "custom")
+                      setFeeRoute(
+                        event.target.value as
+                          | "author_xmoney"
+                          | "developer"
+                          | "custom"
+                          | "charity",
+                      )
                     }
                   >
                     <option value="author_xmoney">
                       Original X author via X Money · @{resolved.post.handle || "author"}
                     </option>
                     <option value="developer">Developer · connected wallet</option>
-                    <option value="custom">Custom wallet / charity</option>
+                    <option value="custom">Custom wallet</option>
+                    {venue === "pumpfun" && (
+                      <option value="charity">Charity · Donate.gg</option>
+                    )}
                   </select>
                   <small>
                     X Money routing is publicly tracked on the token page. XLaunch never represents
                     itself as affiliated with X or X Money.
                   </small>
                 </label>
+
+                {feeRoute === "charity" && venue === "pumpfun" && (
+                  <div className="charityPicker">
+                    <label>
+                      <span>DONATE.GG CHARITY</span>
+                      <div className="inline">
+                        <input
+                          value={charityQuery}
+                          onChange={(event) => setCharityQuery(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              searchCharities();
+                            }
+                          }}
+                          placeholder="Search participating charities"
+                        />
+                        <button
+                          type="button"
+                          onClick={searchCharities}
+                          disabled={charitySearching}
+                        >
+                          {charitySearching ? "SEARCHING…" : "SEARCH"}
+                        </button>
+                      </div>
+                      <small>
+                        Results come live from Donate.gg. The selected charity is recorded
+                        publicly with this token&apos;s provenance.
+                      </small>
+                    </label>
+
+                    {charities.length > 0 && (
+                      <div className="charityResults">
+                        {charities.map((charity) => (
+                          <button
+                            type="button"
+                            key={charity.id}
+                            className={selectedCharity?.id === charity.id ? "selected" : ""}
+                            onClick={() => setSelectedCharity(charity)}
+                          >
+                            <b>{charity.name}</b>
+                            <span>
+                              {charity.country} · {charity.status.replaceAll("_", " ")}
+                            </span>
+                            <small>{charity.mission?.slice(0, 150)}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedCharity && (
+                      <div className="charitySelected">
+                        <span>SELECTED CHARITY</span>
+                        <b>{selectedCharity.name}</b>
+                        <small>
+                          Creator fees route through XLaunch&apos;s Donate.gg settlement
+                          flow and a Donate.gg config created for this charity.
+                        </small>
+                      </div>
+                    )}
+
+                    {charityRoutingConfigured === false && (
+                      <div className="invalid">
+                        Charity discovery works, but live routing still needs XLaunch&apos;s
+                        Donate.gg developer key and settlement treasury.
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {feeRoute === "custom" && (
                   <label>
