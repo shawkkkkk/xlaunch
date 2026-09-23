@@ -5,7 +5,7 @@ import {
   updateSocialCommandStatus,
 } from "@/lib/db";
 import { verifyReservationProof } from "@/lib/auth";
-import { verifySocialConfirmationToken } from "@/lib/social-token";
+import { readXSession } from "@/lib/x-oauth";
 
 export const runtime = "nodejs";
 
@@ -13,10 +13,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const commandPostId = String(body.commandPostId || "");
-    const token = String(body.token || "");
     const wallet = String(body.wallet || "").trim();
 
-    if (!/^\d+$/.test(commandPostId) || !token || !wallet) {
+    if (!/^\d+$/.test(commandPostId) || !wallet) {
       throw new Error("Invalid X wallet-link request.");
     }
 
@@ -24,8 +23,12 @@ export async function POST(request: NextRequest) {
     if (!command) {
       return NextResponse.json({ error: "Unknown X launch command." }, { status: 404 });
     }
-    if (!verifySocialConfirmationToken(token, String(command.confirmation_token_hash))) {
-      return NextResponse.json({ error: "Invalid social confirmation token." }, { status: 403 });
+    const session = readXSession(request.cookies.get("xlaunch_x_session")?.value);
+    if (!session || String(session.xUserId) !== String(command.x_user_id)) {
+      return NextResponse.json(
+        { error: "Sign in with the X account that wrote this launch command." },
+        { status: 403 },
+      );
     }
 
     await verifyReservationProof({
