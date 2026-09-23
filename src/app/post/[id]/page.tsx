@@ -10,7 +10,8 @@ function feeRouteLabel(record: Awaited<ReturnType<typeof getRegistryRecord>>) {
       ? `@${record.fee_recipient_handle} via X Money`
       : "Original X author via X Money";
   }
-  if (record.fee_route === "custom") return "Custom wallet / charity";
+  if (record.fee_route === "custom") return "Custom wallet";
+  if (record.fee_route === "charity") return "Charity via Donate.gg";
   if (record.fee_route === "holder_rewards") return "Holder rewards";
   return "Developer wallet";
 }
@@ -41,7 +42,22 @@ export default async function PostTokenPage({
     description?: string;
     image?: string;
     socials?: { website?: string; twitter?: string };
+    xlaunch?: {
+      donationConfig?: {
+        configId?: { base58?: string; hex?: string };
+        feeBps?: string;
+        charity?: {
+          id?: string;
+          slug?: string;
+          name?: string;
+          logo?: string;
+          website?: string;
+          status?: string;
+        };
+      } | null;
+    };
   };
+  const donationConfig = metadata.xlaunch?.donationConfig;
 
   return (
     <main className="tokenPage">
@@ -88,6 +104,22 @@ export default async function PostTokenPage({
           {record.fee_recipient_wallet && (
             <div className="feeLine"><span>ONCHAIN RECIPIENT</span><code>{record.fee_recipient_wallet}</code></div>
           )}
+          {record.fee_route === "charity" && donationConfig?.charity?.name && (
+            <>
+              <div className="feeLine">
+                <span>CHARITY</span>
+                <b>{donationConfig.charity.name}</b>
+              </div>
+              <div className="feeLine">
+                <span>DONATE.GG CONFIG</span>
+                <code>{donationConfig.configId?.base58 || "—"}</code>
+              </div>
+              <div className="feeLine">
+                <span>CHARITY STATUS</span>
+                <b>{donationConfig.charity.status?.replaceAll("_", " ") || "—"}</b>
+              </div>
+            </>
+          )}
           {record.fee_route === "author_xmoney" && (
             <div className="feeLine">
               <span>X MONEY PAYOUT</span>
@@ -100,7 +132,8 @@ export default async function PostTokenPage({
           )}
           <p className="proofNote">
             XLaunch reports the configured fee destination and verification state separately.
-            An X Money payout is only shown as paid after a payout event is recorded.
+            An X Money payout or Donate.gg donation is only shown as completed after a
+            corresponding public ledger event is recorded.
           </p>
         </div>
       </section>
