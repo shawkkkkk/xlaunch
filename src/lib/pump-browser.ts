@@ -231,3 +231,70 @@ export async function launchOnPump(input: PumpLaunchInput) {
     feeRecipient: feeRecipient.toBase58(),
   };
 }
+
+
+export async function claimPumpCreatorFees(args: {
+  quoteMint: string;
+  expectedRecipient?: string | null;
+}) {
+  const wallet = provider();
+  const payer = await connectSolanaWallet();
+  if (
+    args.expectedRecipient &&
+    payer.toBase58() !== args.expectedRecipient
+  ) {
+    throw new Error(
+      "Connect the Pump.fun creator-fee recipient wallet shown on the token before claiming.",
+    );
+  }
+
+  const connection = new Connection(rpcUrl(), "confirmed");
+  const online = new OnlinePumpSdk(connection);
+  const quoteMint = new PublicKey(args.quoteMint);
+  const quote = await online.resolveQuoteMint(quoteMint);
+
+  const instructions = quoteMint.equals(NATIVE_MINT)
+    ? await online.collectCoinCreatorFeeInstructions(payer, payer)
+    : await online.collectCoinCreatorFeeV2Instructions(
+        payer,
+        quoteMint,
+        quote.quoteTokenProgram,
+        payer,
+      );
+
+  if (!instructions.length) {
+    throw new Error("Pump.fun returned no creator-fee claim instructions.");
+  }
+
+  const latest = await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: payer,
+    recentBlockhash: latest.blockhash,
+  }).add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 500_000 }),
+    ...instructions,
+  );
+
+  const signed = await wallet.signTransaction(transaction);
+  const signature = await connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+    maxRetries: 3,
+  });
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latest.blockhash,
+      lastValidBlockHeight: latest.lastValidBlockHeight,
+    },
+    "confirmed",
+  );
+  if (confirmation.value.err) {
+    throw new Error("Pump.fun creator-fee claim failed.");
+  }
+
+  return {
+    wallet: payer.toBase58(),
+    txHash: signature,
+    quoteMint: quoteMint.toBase58(),
+  };
+}
