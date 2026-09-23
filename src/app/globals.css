@@ -719,3 +719,36 @@ body>main:not(.xlaunchPage)>nav .navActions{justify-self:end}
   .sourceDisclosure>div{margin-top:4px}
   .legalPage article{padding-top:65px}
 }
+
+
+.tokenMarket{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  border-top:1px solid rgba(255,255,255,.08);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  background:#030303;
+}
+.tokenMarket>div{
+  min-width:0;
+  padding:18px 24px;
+  border-right:1px solid rgba(255,255,255,.08);
+}
+.tokenMarket>div:last-child{border-right:0}
+.tokenMarket span{
+  display:block;
+  margin-bottom:7px;
+  color:#555;
+  font-size:7px;
+  letter-spacing:.14em;
+}
+.tokenMarket b{
+  font-size:13px;
+  font-weight:600;
+  letter-spacing:-.02em;
+}
+.tokenMarket .up{color:#86e69a}
+.tokenMarket .down{color:#ef7979}
+@media(max-width:760px){
+  .tokenMarket{grid-template-columns:1fr 1fr}
+  .tokenMarket>div{border-bottom:1px solid rgba(255,255,255,.08)}
+}
