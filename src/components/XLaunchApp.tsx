@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  availableEvmWallets,
   connectRobinhoodWallet,
   launchOnPons,
   signRobinhoodMessage,
+  type EvmWalletChoice,
 } from "@/lib/pons-browser";
 import {
   availableSolanaWallets,
@@ -165,6 +167,8 @@ export default function XLaunchApp() {
   const [solWalletProvider, setSolWalletProvider] = useState<SolanaWalletChoice | "">("");
   const [solWalletOptions, setSolWalletOptions] = useState<Array<{ id: SolanaWalletChoice; label: string }>>([]);
   const [evmWallet, setEvmWallet] = useState("");
+  const [evmWalletProvider, setEvmWalletProvider] = useState<EvmWalletChoice | "">("");
+  const [evmWalletOptions, setEvmWalletOptions] = useState<Array<{ id: EvmWalletChoice; label: string }>>([]);
   const [socialCommandId, setSocialCommandId] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [features, setFeatures] = useState<FeatureFlags>({
@@ -178,6 +182,7 @@ export default function XLaunchApp() {
 
   useEffect(() => {
     setSolWalletOptions(availableSolanaWallets());
+    setEvmWalletOptions(availableEvmWallets());
   }, []);
 
   useEffect(() => {
@@ -394,9 +399,13 @@ export default function XLaunchApp() {
     try {
       setStatus("Connecting wallet…");
       if (venue === "pons") {
-        const account = await connectRobinhoodWallet();
+        if (!evmWalletProvider) {
+          setStatus("Choose an EVM wallet first.");
+          return;
+        }
+        const account = await connectRobinhoodWallet(evmWalletProvider);
         setEvmWallet(account);
-        setStatus("Robinhood Chain wallet connected.");
+        setStatus(`${evmWalletOptions.find((item) => item.id === evmWalletProvider)?.label || "EVM wallet"} connected to Robinhood Chain.`);
       } else {
         if (!solWalletProvider) {
           setStatus("Choose a Solana wallet first.");
@@ -433,7 +442,7 @@ export default function XLaunchApp() {
 
     const proof =
       venue === "pons"
-        ? await signRobinhoodMessage(challenge.message)
+        ? await signRobinhoodMessage(challenge.message, evmWalletProvider || undefined)
         : await signSolanaMessage(challenge.message, solWalletProvider || undefined);
 
     const sameWallet =
@@ -578,7 +587,10 @@ export default function XLaunchApp() {
       let wallet = activeWallet;
       if (!wallet) {
         if (venue === "pons") {
-          wallet = await connectRobinhoodWallet();
+          if (!evmWalletProvider) {
+            throw new Error("Choose an EVM wallet before launching.");
+          }
+          wallet = await connectRobinhoodWallet(evmWalletProvider);
           setEvmWallet(wallet);
         } else {
           if (!solWalletProvider) {
@@ -617,6 +629,7 @@ export default function XLaunchApp() {
           openingBuyRecipient: buyRecipient,
           exemptions,
           salt,
+          walletProvider: evmWalletProvider || undefined,
         });
       } else if (venue === "pumpfun") {
         if (!selectedPumpQuote) throw new Error("Select a live Pump.fun quote asset.");
@@ -726,11 +739,31 @@ export default function XLaunchApp() {
         </nav>
 
         <div className="xlHeaderActions">
-          {venue !== "pons" && (
+          {venue === "pons" ? (
+            <select
+              className="xlWalletSelect"
+              aria-label="Choose EVM wallet"
+              value={evmWalletProvider}
+              onFocus={() => setEvmWalletOptions(availableEvmWallets())}
+              onChange={(event) => {
+                setEvmWalletProvider(event.target.value as EvmWalletChoice | "");
+                setEvmWallet("");
+                setStatus("");
+              }}
+            >
+              <option value="">Choose wallet</option>
+              {evmWalletOptions.map((walletOption) => (
+                <option key={walletOption.id} value={walletOption.id}>
+                  {walletOption.label}
+                </option>
+              ))}
+            </select>
+          ) : (
             <select
               className="xlWalletSelect"
               aria-label="Choose Solana wallet"
               value={solWalletProvider}
+              onFocus={() => setSolWalletOptions(availableSolanaWallets())}
               onChange={(event) => {
                 setSolWalletProvider(event.target.value as SolanaWalletChoice | "");
                 setSolWallet("");
