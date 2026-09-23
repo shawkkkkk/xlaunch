@@ -59,7 +59,7 @@ export function oauthConfig() {
   const clientId = process.env.X_API_CLIENT_ID?.trim();
   if (!clientId) throw new Error("X OAuth client id is not configured.");
 
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://xlaunch.it").replace(/\/$/, "");
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL || "https://launchonx.net").replace(/\/$/, "");
   return {
     clientId,
     clientSecret: process.env.X_API_CLIENT_SECRET?.trim() || "",
