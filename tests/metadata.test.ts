@@ -9,6 +9,15 @@ describe("launch metadata", () => {
     expect(result.source.registry).toBe("https://xlaunch.it/post/123");
   });
 
+  it("generates an XLaunch post card when no token image is supplied", () => {
+    const result = buildLaunchMetadata({
+      postId: "123",
+      name: "Hello",
+      symbol: "HI",
+    });
+    expect(result.image).toBe("https://xlaunch.it/api/post-card/123");
+  });
+
   it("always points twitter to the source post", () => {
     const result = buildLaunchMetadata({
       postId: "123",
