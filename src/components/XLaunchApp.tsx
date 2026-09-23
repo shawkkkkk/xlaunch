@@ -7,9 +7,11 @@ import {
   signRobinhoodMessage,
 } from "@/lib/pons-browser";
 import {
+  availableSolanaWallets,
   connectSolanaWallet,
   launchOnPump,
   signSolanaMessage,
+  type SolanaWalletChoice,
 } from "@/lib/pump-browser";
 import { launchOnStonkFun } from "@/lib/stonkfun-browser";
 
@@ -160,6 +162,8 @@ export default function XLaunchApp() {
   const [status, setStatus] = useState("");
   const [launching, setLaunching] = useState(false);
   const [solWallet, setSolWallet] = useState("");
+  const [solWalletProvider, setSolWalletProvider] = useState<SolanaWalletChoice | "">("");
+  const [solWalletOptions, setSolWalletOptions] = useState<Array<{ id: SolanaWalletChoice; label: string }>>([]);
   const [evmWallet, setEvmWallet] = useState("");
   const [socialCommandId, setSocialCommandId] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -171,6 +175,10 @@ export default function XLaunchApp() {
     bot: false,
   });
   const socialPrefillApplied = useRef(false);
+
+  useEffect(() => {
+    setSolWalletOptions(availableSolanaWallets());
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -390,9 +398,13 @@ export default function XLaunchApp() {
         setEvmWallet(account);
         setStatus("Robinhood Chain wallet connected.");
       } else {
-        const account = await connectSolanaWallet();
+        if (!solWalletProvider) {
+          setStatus("Choose a Solana wallet first.");
+          return;
+        }
+        const account = await connectSolanaWallet(solWalletProvider);
         setSolWallet(account.toBase58());
-        setStatus("Solana wallet connected.");
+        setStatus(`${solWalletOptions.find((item) => item.id === solWalletProvider)?.label || "Solana wallet"} connected.`);
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Wallet connection failed.");
@@ -422,7 +434,7 @@ export default function XLaunchApp() {
     const proof =
       venue === "pons"
         ? await signRobinhoodMessage(challenge.message)
-        : await signSolanaMessage(challenge.message);
+        : await signSolanaMessage(challenge.message, solWalletProvider || undefined);
 
     const sameWallet =
       venue === "pons"
@@ -569,7 +581,10 @@ export default function XLaunchApp() {
           wallet = await connectRobinhoodWallet();
           setEvmWallet(wallet);
         } else {
-          const account = await connectSolanaWallet();
+          if (!solWalletProvider) {
+            throw new Error("Choose a Solana wallet before launching.");
+          }
+          const account = await connectSolanaWallet(solWalletProvider);
           wallet = account.toBase58();
           setSolWallet(wallet);
         }
@@ -619,6 +634,7 @@ export default function XLaunchApp() {
           creatorFeeBps:
             selectedPumpQuote.source === "quoteControl" ? pumpCreatorFeeBps : 0,
           feeRecipientWallet: reservation.feeDestination.recipientWallet,
+          walletProvider: solWalletProvider || undefined,
         });
       } else {
         if (!selectedPair?.mint) throw new Error("Select a live StonkFun pair.");
@@ -632,6 +648,7 @@ export default function XLaunchApp() {
           rewardBps,
           feeRecipientWallet: reservation.feeDestination.recipientWallet,
           openingBuy: stonkDevBuy,
+          walletProvider: solWalletProvider || undefined,
         });
       }
 
@@ -709,6 +726,25 @@ export default function XLaunchApp() {
         </nav>
 
         <div className="xlHeaderActions">
+          {venue !== "pons" && (
+            <select
+              className="xlWalletSelect"
+              aria-label="Choose Solana wallet"
+              value={solWalletProvider}
+              onChange={(event) => {
+                setSolWalletProvider(event.target.value as SolanaWalletChoice | "");
+                setSolWallet("");
+                setStatus("");
+              }}
+            >
+              <option value="">Choose wallet</option>
+              {solWalletOptions.map((walletOption) => (
+                <option key={walletOption.id} value={walletOption.id}>
+                  {walletOption.label}
+                </option>
+              ))}
+            </select>
+          )}
           <button className="xlButton xlButtonSolid xlAppear xlScale" type="button" onClick={connectCurrentWallet}>
             {activeWallet
               ? activeWallet.slice(0, 5) + "…" + activeWallet.slice(-4)
