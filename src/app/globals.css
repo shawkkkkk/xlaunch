@@ -786,3 +786,10 @@ body>main:not(.xlaunchPage)>nav .navActions{justify-self:end}
 .launchRecoveryActions button:disabled{opacity:.45}
 .launchRecovery small{color:#777;font-size:9px;line-height:1.5}
 @media(max-width:620px){.launchRecovery>div:not(.launchRecoveryActions){grid-template-columns:1fr}.launchRecoveryActions{flex-direction:column}.launchRecoveryActions button,.launchRecoveryActions a{width:100%;text-align:center}}
+
+.reservationRecovery{margin-top:18px;border:1px solid #4a3f22;background:#0a0802;padding:18px}
+.reservationRecovery small{display:block;color:#8d7742;font-size:8px;letter-spacing:.14em;margin-bottom:7px}
+.reservationRecovery b{display:block;font-size:11px;letter-spacing:.07em}
+.reservationRecovery p{color:#777;font-size:9px;line-height:1.55;margin:10px 0 14px}
+.reservationRecovery button{width:100%;border:1px solid #665e2f;background:#111;color:#ffd369;padding:12px;font-size:8px;font-weight:900;letter-spacing:.09em}
+.reservationRecovery button:disabled{opacity:.45}
