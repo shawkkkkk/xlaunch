@@ -13,16 +13,6 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers }];
   },
-  async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.launchonx.net" }],
-        destination: "https://launchonx.net/:path*",
-        permanent: true,
-      },
-    ];
-  },
 };
 
 export default nextConfig;
