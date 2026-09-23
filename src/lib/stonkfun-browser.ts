@@ -110,6 +110,11 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
     quoteMint,
   );
 
+  const quoteTokenProgram =
+    input.quoteTokenProgram === TOKEN_2022_PROGRAM_ID.toBase58()
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+
   const instruction = initializeWithToken2022(
     programId,
     payer,
@@ -122,6 +127,7 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
     quoteMint,
     getPdaLaunchpadVaultId(programId, poolId, mint).publicKey,
     getPdaLaunchpadVaultId(programId, poolId, quoteMint).publicKey,
+    quoteTokenProgram,
     Number(pricing.curve.baseDecimals),
     input.name,
     input.symbol,
@@ -143,25 +149,11 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
           maxinumFee: new BN("1000000000000000"),
         }
       : undefined,
-  );
-
-  if (input.quoteTokenProgram === TOKEN_2022_PROGRAM_ID.toBase58()) {
-    if (!instruction.keys[11]?.pubkey.equals(TOKEN_PROGRAM_ID)) {
-      throw new Error("Raydium LaunchLab account layout changed; launch stopped for safety.");
-    }
-    instruction.keys[11] = {
-      ...instruction.keys[11],
-      pubkey: TOKEN_2022_PROGRAM_ID,
-    };
-  }
-
-  instruction.keys.push({
-    pubkey: new PublicKey(
+    undefined,
+    new PublicKey(
       taxBps ? pricing.curveRule.reward : pricing.curveRule.standard,
     ),
-    isSigner: false,
-    isWritable: false,
-  });
+  );
 
   const connection = new Connection(rpcUrl(), "confirmed");
   const latest = await connection.getLatestBlockhash("confirmed");
