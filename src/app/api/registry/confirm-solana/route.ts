@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import bs58 from "bs58";
 import { Connection, PublicKey } from "@solana/web3.js";
 import {
   getMint,
   getTransferFeeConfig,
   TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   holderRewardsPda,
   OnlinePumpSdk,
 } from "@pump-fun/pump-sdk";
+import {
+  getPdaLaunchpadAuth,
+  getPdaLaunchpadPoolId,
+} from "@raydium-io/raydium-sdk-v2";
 import {
   confirmReservedPost,
   getRegistryRecord,
@@ -26,6 +32,7 @@ type LaunchConfig = {
   holderReward?: boolean;
   mayhemMode?: boolean;
   creatorFeeBps?: number;
+  openingBuy?: string;
 };
 
 type StonkPricing = {
@@ -77,22 +84,51 @@ async function fetchStonkPricing(quoteMint: string): Promise<StonkPricing> {
   return body.data as StonkPricing;
 }
 
+type PartialProgramInstruction = {
+  programId: PublicKey;
+  accounts: PublicKey[];
+  data: string;
+};
+
+function findProgramInstructions(
+  transaction: NonNullable<
+    Awaited<ReturnType<Connection["getParsedTransaction"]>>
+  >,
+  programId: PublicKey,
+) {
+  return transaction.transaction.message.instructions.filter(
+    (instruction) =>
+      "accounts" in instruction && instruction.programId.equals(programId),
+  ) as PartialProgramInstruction[];
+}
+
 function findProgramInstruction(
   transaction: NonNullable<
     Awaited<ReturnType<Connection["getParsedTransaction"]>>
   >,
   programId: PublicKey,
 ) {
-  return transaction.transaction.message.instructions.find(
-    (instruction) =>
-      "accounts" in instruction && instruction.programId.equals(programId),
-  ) as
-    | {
-        programId: PublicKey;
-        accounts: PublicKey[];
-      }
-    | undefined;
+  return findProgramInstructions(transaction, programId)[0];
 }
+
+function parseDecimalRaw(value: string, decimals: number) {
+  const trimmed = value.trim();
+  if (!/^\\d+(?:\\.\\d+)?$/.test(trimmed)) {
+    throw new Error("Reserved opening buy is invalid.");
+  }
+  const [whole, fraction = ""] = trimmed.split(".");
+  if (fraction.length > decimals) {
+    throw new Error("Reserved opening buy exceeds quote-token precision.");
+  }
+  return BigInt(
+    (whole.replace(/^0+(?=\\d)/, "") + fraction.padEnd(decimals, "0"))
+      .replace(/^0+/, "") || "0",
+  );
+}
+
+const BUY_EXACT_IN_DISCRIMINATOR = Buffer.from([
+  250, 234, 13, 123, 213, 156, 19, 236,
+]);
 
 async function verifyStonkLaunch(args: {
   connection: Connection;
@@ -108,7 +144,8 @@ async function verifyStonkLaunch(args: {
 
   const pricing = await fetchStonkPricing(config.quoteMint);
   const programId = new PublicKey(pricing.curve.programId);
-  const instruction = findProgramInstruction(args.transaction, programId);
+  const programInstructions = findProgramInstructions(args.transaction, programId);
+  const instruction = programInstructions[0];
   if (!instruction) {
     throw new Error("Transaction did not invoke the expected StonkFun LaunchLab program.");
   }
@@ -124,6 +161,12 @@ async function verifyStonkLaunch(args: {
     rewardMode ? pricing.curveRule.reward : pricing.curveRule.standard,
   );
   const expectedQuote = new PublicKey(config.quoteMint);
+  const expectedAuth = getPdaLaunchpadAuth(programId).publicKey;
+  const expectedPool = getPdaLaunchpadPoolId(
+    programId,
+    args.mint,
+    expectedQuote,
+  ).publicKey;
 
   const accounts = instruction.accounts;
   if (
@@ -131,6 +174,8 @@ async function verifyStonkLaunch(args: {
     !accounts[1]?.equals(expectedCreator) ||
     !accounts[2]?.equals(new PublicKey(pricing.curve.configId)) ||
     !accounts[3]?.equals(expectedPlatform) ||
+    !accounts[4]?.equals(expectedAuth) ||
+    !accounts[5]?.equals(expectedPool) ||
     !accounts[6]?.equals(args.mint) ||
     !accounts[7]?.equals(expectedQuote) ||
     !accounts.at(-1)?.equals(expectedRule)
@@ -162,6 +207,65 @@ async function verifyStonkLaunch(args: {
     throw new Error(
       "A StonkFun Standard launch must not contain a transfer-fee extension.",
     );
+  }
+
+  const openingBuy = String(config.openingBuy || "0").trim() || "0";
+  if (Number(openingBuy) > 0) {
+    const quoteAccount = await args.connection.getAccountInfo(
+      expectedQuote,
+      "confirmed",
+    );
+    if (
+      !quoteAccount ||
+      (!quoteAccount.owner.equals(TOKEN_PROGRAM_ID) &&
+        !quoteAccount.owner.equals(TOKEN_2022_PROGRAM_ID))
+    ) {
+      throw new Error("Could not verify the StonkFun quote-token program.");
+    }
+
+    const quoteMintInfo = await getMint(
+      args.connection,
+      expectedQuote,
+      "confirmed",
+      quoteAccount.owner,
+    );
+    const expectedAmountB = parseDecimalRaw(
+      openingBuy,
+      quoteMintInfo.decimals,
+    );
+
+    const buyInstruction = programInstructions.find((candidate, index) => {
+      if (index === 0) return false;
+      const buyAccounts = candidate.accounts;
+      return (
+        buyAccounts[0]?.equals(args.user) &&
+        buyAccounts[1]?.equals(expectedAuth) &&
+        buyAccounts[2]?.equals(new PublicKey(pricing.curve.configId)) &&
+        buyAccounts[3]?.equals(expectedPlatform) &&
+        buyAccounts[4]?.equals(expectedPool) &&
+        buyAccounts[9]?.equals(args.mint) &&
+        buyAccounts[10]?.equals(expectedQuote)
+      );
+    });
+    if (!buyInstruction) {
+      throw new Error(
+        "The reserved StonkFun opening buy is missing from the launch transaction.",
+      );
+    }
+
+    const data = Buffer.from(bs58.decode(buyInstruction.data));
+    if (
+      data.length < 16 ||
+      !data.subarray(0, 8).equals(BUY_EXACT_IN_DISCRIMINATOR)
+    ) {
+      throw new Error("Could not verify the StonkFun opening-buy instruction.");
+    }
+    const actualAmountB = data.readBigUInt64LE(8);
+    if (actualAmountB !== expectedAmountB) {
+      throw new Error(
+        "The StonkFun opening buy does not match the canonical reservation.",
+      );
+    }
   }
 }
 
