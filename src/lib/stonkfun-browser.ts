@@ -122,7 +122,7 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
     quoteMint,
     getPdaLaunchpadVaultId(programId, poolId, mint).publicKey,
     getPdaLaunchpadVaultId(programId, poolId, quoteMint).publicKey,
-    pricing.curve.baseDecimals,
+    Number(pricing.curve.baseDecimals),
     input.name,
     input.symbol,
     metadataUri(input.postId),
