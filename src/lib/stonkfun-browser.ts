@@ -26,18 +26,22 @@ type InjectedSolanaProvider = {
   signTransaction: (transaction: Transaction) => Promise<Transaction>;
 };
 
-declare global {
-  interface Window {
+function provider(): InjectedSolanaProvider {
+  if (typeof window === "undefined") {
+    throw new Error("Solana wallet is unavailable.");
+  }
+  const browser = window as unknown as {
     solana?: InjectedSolanaProvider;
     phantom?: { solana?: InjectedSolanaProvider };
     backpack?: { solana?: InjectedSolanaProvider };
+  };
+  const wallet =
+    browser.phantom?.solana ||
+    browser.backpack?.solana ||
+    browser.solana;
+  if (!wallet) {
+    throw new Error("No Solana wallet found. Install Phantom or Backpack.");
   }
-}
-
-function provider(): InjectedSolanaProvider {
-  if (typeof window === "undefined") throw new Error("Solana wallet is unavailable.");
-  const wallet = window.phantom?.solana || window.backpack?.solana || window.solana;
-  if (!wallet) throw new Error("No Solana wallet found. Install Phantom or Backpack.");
   return wallet;
 }
 
