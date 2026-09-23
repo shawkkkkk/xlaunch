@@ -11,6 +11,7 @@ export type RegistryRecord = {
   venue: RegistryVenue;
   chain: RegistryChain;
   reserver_wallet: string;
+  creator_x_user_id: string | null;
   reservation_expires_at: string | null;
   token_name: string;
   token_symbol: string;
@@ -41,6 +42,7 @@ export async function reservePost(args: {
   venue: RegistryVenue;
   chain: RegistryChain;
   wallet: string;
+  creatorXUserId?: string | null;
   tokenName: string;
   tokenSymbol: string;
   metadata: Record<string, unknown>;
@@ -54,7 +56,7 @@ export async function reservePost(args: {
   const rows = await sql()`
     INSERT INTO xlaunch_posts (
       post_id, source_key, post_url, status, venue, chain, reserver_wallet,
-      reservation_expires_at, token_name, token_symbol, metadata,
+      creator_x_user_id, reservation_expires_at, token_name, token_symbol, metadata,
       fee_route, fee_recipient_handle, fee_recipient_wallet, fee_routing_status
     ) VALUES (
       ${args.postId},
@@ -64,6 +66,7 @@ export async function reservePost(args: {
       ${args.venue},
       ${args.chain},
       ${args.wallet},
+      ${args.creatorXUserId ?? null},
       now() + (${ttl} * interval '1 minute'),
       ${args.tokenName},
       ${args.tokenSymbol},
@@ -79,6 +82,7 @@ export async function reservePost(args: {
       venue = EXCLUDED.venue,
       chain = EXCLUDED.chain,
       reserver_wallet = EXCLUDED.reserver_wallet,
+      creator_x_user_id = EXCLUDED.creator_x_user_id,
       reservation_expires_at = EXCLUDED.reservation_expires_at,
       token_name = EXCLUDED.token_name,
       token_symbol = EXCLUDED.token_symbol,
@@ -370,4 +374,109 @@ export async function setSocialCompletionReply(args: {
     RETURNING *
   `;
   return rows[0] ?? null;
+}
+
+
+export type XLaunchProfile = {
+  x_user_id: string;
+  x_handle: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  evm_wallet_address: string | null;
+  evm_wallet_provider_id: string | null;
+  solana_wallet_address: string | null;
+  solana_wallet_provider_id: string | null;
+  wallet_provider: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function upsertProfile(args: {
+  xUserId: string;
+  xHandle: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}) {
+  const rows = await sql()`
+    INSERT INTO xlaunch_profiles (
+      x_user_id, x_handle, display_name, avatar_url
+    ) VALUES (
+      ${args.xUserId},
+      ${args.xHandle},
+      ${args.displayName ?? null},
+      ${args.avatarUrl ?? null}
+    )
+    ON CONFLICT (x_user_id) DO UPDATE SET
+      x_handle = EXCLUDED.x_handle,
+      display_name = COALESCE(EXCLUDED.display_name, xlaunch_profiles.display_name),
+      avatar_url = COALESCE(EXCLUDED.avatar_url, xlaunch_profiles.avatar_url),
+      updated_at = now()
+    RETURNING *
+  `;
+  return rows[0] as XLaunchProfile;
+}
+
+export async function getProfile(xUserId: string) {
+  const rows = await sql()`
+    SELECT * FROM xlaunch_profiles WHERE x_user_id = ${xUserId} LIMIT 1
+  `;
+  return (rows[0] as XLaunchProfile | undefined) ?? null;
+}
+
+export async function setProfileWallets(args: {
+  xUserId: string;
+  provider: string;
+  evmAddress?: string | null;
+  evmProviderId?: string | null;
+  solanaAddress?: string | null;
+  solanaProviderId?: string | null;
+}) {
+  const rows = await sql()`
+    UPDATE xlaunch_profiles
+    SET wallet_provider = ${args.provider},
+        evm_wallet_address = COALESCE(${args.evmAddress ?? null}, evm_wallet_address),
+        evm_wallet_provider_id = COALESCE(${args.evmProviderId ?? null}, evm_wallet_provider_id),
+        solana_wallet_address = COALESCE(${args.solanaAddress ?? null}, solana_wallet_address),
+        solana_wallet_provider_id = COALESCE(${args.solanaProviderId ?? null}, solana_wallet_provider_id),
+        updated_at = now()
+    WHERE x_user_id = ${args.xUserId}
+    RETURNING *
+  `;
+  return (rows[0] as XLaunchProfile | undefined) ?? null;
+}
+
+export async function getProfileTokens(xUserId: string) {
+  return sql()`
+    SELECT
+      post_id, post_url, venue, chain, token_name, token_symbol,
+      token_address, tx_hash, fee_route, fee_routing_status, confirmed_at
+    FROM xlaunch_posts
+    WHERE creator_x_user_id = ${xUserId}
+      AND status = 'live'
+    ORDER BY confirmed_at DESC NULLS LAST
+    LIMIT 100
+  `;
+}
+
+export async function getProfileFeeEvents(xUserId: string) {
+  return sql()`
+    SELECT
+      e.id, e.post_id, e.event_type, e.asset, e.amount, e.usd_amount,
+      e.chain_tx_hash, e.proof_url, e.note, e.created_at,
+      p.token_name, p.token_symbol, p.venue
+    FROM xlaunch_fee_events e
+    JOIN xlaunch_posts p ON p.post_id = e.post_id
+    WHERE p.creator_x_user_id = ${xUserId}
+    ORDER BY e.created_at DESC
+    LIMIT 200
+  `;
+}
+
+export async function getWalletActivity(xUserId: string) {
+  return sql()`
+    SELECT * FROM xlaunch_wallet_activity
+    WHERE x_user_id = ${xUserId}
+    ORDER BY created_at DESC
+    LIMIT 100
+  `;
 }
