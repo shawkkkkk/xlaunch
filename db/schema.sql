@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS xlaunch_posts_creator_idx ON xlaunch_posts(reserver_w
 CREATE TABLE IF NOT EXISTS xlaunch_fee_events (
   id BIGSERIAL PRIMARY KEY,
   post_id TEXT NOT NULL REFERENCES xlaunch_posts(post_id) ON DELETE CASCADE,
-  event_type TEXT NOT NULL CHECK (event_type IN ('accrued', 'claimed', 'converted', 'xmoney_sent', 'xmoney_expired', 'refunded')),
+  event_type TEXT NOT NULL CHECK (event_type IN ('accrued', 'claimed', 'converted', 'xmoney_sent', 'xmoney_expired', 'donate_gg_sent', 'refunded')),
   asset TEXT,
   amount TEXT,
   usd_amount NUMERIC(20, 6),
