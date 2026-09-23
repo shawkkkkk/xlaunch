@@ -77,9 +77,9 @@ XLaunch is designed to support launching from X itself.
 Reply to the exact post you want to tokenize and mention the XLaunch account with an explicit venue, for example:
 
 ```
-@launchedonx launch this on pumpfun as $DOG
-@launchedonx launch this on stonkfun reward mode 2% as $POST
-@launchedonx launch this on pons paired with AAPL, fees to author
+@launchonx_ launch this on pumpfun as $DOG
+@launchonx_ launch this on stonkfun reward mode 2% as $POST
+@launchonx_ launch this on pons paired with AAPL, fees to author
 ```
 
 The reply's parent X status id is the canonical source. The command cannot substitute another source post. Social commands are parsed server-side, but launching remains disabled until the command author has an authenticated linked wallet and the X ingestion service verifies the mention/reply relationship.
@@ -104,18 +104,18 @@ The mention worker is disabled until `X_BOT_USER_ID`, a user-context `X_BOT_ACCE
 
 ### X automation identity
 
-The production bot account is **@launchedonx**.
+The production bot account is **@launchonx_**.
 
-The human operator account is **@ShayanelH**. X's automated-account label should be enabled on @launchedonx and connected to @ShayanelH so the public profile identifies the bot as automated and names its operator.
+The human operator account is **@ShayanelH**. X's automated-account label should be enabled on @launchonx_ and connected to @ShayanelH so the public profile identifies the bot as automated and names its operator.
 
 This relationship is configured in X account settings, not by XLaunch code. XLaunch stores the handles as deployment configuration for consistency, but must never claim the platform label is active until it is visibly enabled on X.
 
 Public bot behavior:
 
-- Users reply under the exact source post and tag @launchedonx.
+- Users reply under the exact source post and tag @launchonx_.
 - The parent post id becomes the canonical XLaunch source.
-- @launchedonx replies with the verification/signing link.
-- After onchain confirmation, @launchedonx replies again with venue, ticker, contract address and the canonical XLaunch page.
+- @launchonx_ replies with the verification/signing link.
+- After onchain confirmation, @launchonx_ replies again with venue, ticker, contract address and the canonical XLaunch page.
 
 
 ## Production launch
