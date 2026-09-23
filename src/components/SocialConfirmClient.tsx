@@ -28,10 +28,11 @@ type ConfirmData = {
   };
 };
 
-function launcherUrl(data: ConfirmData) {
+function launcherUrl(data: ConfirmData, token: string) {
   if (!data.command) return "/";
   const params = new URLSearchParams();
   params.set("social", data.command.commandPostId);
+  params.set("socialToken", token);
   params.set("post", data.command.sourcePostId);
   params.set("venue", data.command.venue);
   if (data.command.intent.symbol) params.set("symbol", data.command.intent.symbol);
@@ -67,7 +68,7 @@ export default function SocialConfirmClient({
       .catch((reason) => setError(reason instanceof Error ? reason.message : "Could not verify launch command."));
   }, [commandPostId, token]);
 
-  const continueUrl = useMemo(() => (data ? launcherUrl(data) : "/"), [data]);
+  const continueUrl = useMemo(() => (data ? launcherUrl(data, token) : "/"), [data, token]);
 
   if (error) {
     return <section className="socialConfirm"><div className="socialError">{error}</div></section>;
