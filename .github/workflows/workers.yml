@@ -1,0 +1,31 @@
+name: Production Workers
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: xlaunch-production-workers
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    if: ${{ vars.XLAUNCH_WORKERS_ENABLED == 'true' }}
+    steps:
+      - name: Refresh market index
+        env:
+          URL: ${{ secrets.XLAUNCH_PROD_URL }}
+          SECRET: ${{ secrets.XLAUNCH_CRON_SECRET }}
+        run: |
+          test -n "$URL" && test -n "$SECRET"
+          curl --fail-with-body --retry 2 --max-time 55             -H "Authorization: Bearer $SECRET"             "$URL/api/market/refresh"
+
+      - name: Process X mentions and completion replies
+        env:
+          URL: ${{ secrets.XLAUNCH_PROD_URL }}
+          SECRET: ${{ secrets.XLAUNCH_CRON_SECRET }}
+        run: |
+          test -n "$URL" && test -n "$SECRET"
+          curl --fail-with-body --retry 2 --max-time 55             -H "Authorization: Bearer $SECRET"             "$URL/api/social/worker"
