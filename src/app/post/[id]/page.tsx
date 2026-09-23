@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getFeeEvents, getMarketSnapshot, getRegistryRecord } from "@/lib/db";
+import { fetchDexScreenerMarket } from "@/lib/market";
 
 export const dynamic = "force-dynamic";
 
@@ -96,10 +97,18 @@ export default async function PostTokenPage({
   const record = await getRegistryRecord(id).catch(() => null);
   if (!record) notFound();
 
-  const [events, market] = await Promise.all([
+  const [events, market, dex] = await Promise.all([
     getFeeEvents(id).catch(() => []),
     getMarketSnapshot(id).catch(() => null),
+    record.token_address
+      ? fetchDexScreenerMarket(record.token_address, record.chain).catch(() => null)
+      : Promise.resolve(null),
   ]);
+
+  const dexChartUrl =
+    dex?.pairAddress && dex?.chainId
+      ? `https://dexscreener.com/${encodeURIComponent(dex.chainId)}/${encodeURIComponent(dex.pairAddress)}?embed=1&loadChartSettings=0&trades=0&info=0&chartLeftToolbar=0&chartTheme=dark&theme=dark&chartStyle=1&interval=15&chartType=price`
+      : null;
   const xMoneyPayouts = events.filter(
     (event: any) => event.event_type === "xmoney_sent",
   );
@@ -145,35 +154,91 @@ export default async function PostTokenPage({
           <span>{record.venue.toUpperCase()}</span>
           <span>{record.chain.toUpperCase()}</span>
           <span>{record.status.toUpperCase()}</span>
+          {dex?.url && (
+            <a href={dex.url} target="_blank" rel="noreferrer">
+              DEXSCREENER ↗
+            </a>
+          )}
         </div>
       </section>
 
-      {market && (
+      {(dex || market) && (
         <section className="tokenMarket">
           <div>
             <span>PRICE</span>
-            <b>{compactUsd((market as any).price_usd)}</b>
+            <b>{compactUsd(dex?.priceUsd ?? (market as any)?.price_usd)}</b>
           </div>
           <div>
             <span>MARKET CAP</span>
-            <b>{compactUsd((market as any).market_cap_usd)}</b>
+            <b>{compactUsd(dex?.marketCap ?? dex?.fdv ?? (market as any)?.market_cap_usd)}</b>
           </div>
           <div>
             <span>24H VOLUME</span>
-            <b>{compactUsd((market as any).volume_24h_usd)}</b>
+            <b>{compactUsd(dex?.volume24h ?? (market as any)?.volume_24h_usd)}</b>
           </div>
           <div>
             <span>24H</span>
-            <b className={Number((market as any).price_change_24h_pct) >= 0 ? "up" : "down"}>
-              {percent((market as any).price_change_24h_pct)}
+            <b className={Number(dex?.priceChange24h ?? (market as any)?.price_change_24h_pct) >= 0 ? "up" : "down"}>
+              {percent(dex?.priceChange24h ?? (market as any)?.price_change_24h_pct)}
             </b>
           </div>
           <div>
             <span>LIQUIDITY</span>
-            <b>{compactUsd((market as any).liquidity_usd)}</b>
+            <b>{compactUsd(dex?.liquidityUsd ?? (market as any)?.liquidity_usd)}</b>
           </div>
         </section>
       )}
+
+      <section className="dexPanel">
+        <div className="dexPanelHead">
+          <div>
+            <div className="sectionLabel">LIVE MARKET</div>
+            <h2>DEXSCREENER</h2>
+          </div>
+          {dex?.url && (
+            <a href={dex.url} target="_blank" rel="noreferrer">
+              OPEN DEXSCREENER ↗
+            </a>
+          )}
+        </div>
+
+        {dex && dexChartUrl ? (
+          <>
+            <div className="dexChart">
+              <iframe
+                src={dexChartUrl}
+                title={`${record.token_symbol || record.token_name} DexScreener chart`}
+                loading="lazy"
+                allowFullScreen
+              />
+            </div>
+            <div className="dexStats">
+              <div><span>DEX</span><b>{String(dex.dexId || "—").toUpperCase()}</b></div>
+              <div><span>PAIR</span><b>{dex.quoteToken?.symbol || "—"}</b></div>
+              <div><span>FDV</span><b>{compactUsd(dex.fdv)}</b></div>
+              <div><span>LIQUIDITY</span><b>{compactUsd(dex.liquidityUsd)}</b></div>
+              <div><span>24H VOLUME</span><b>{compactUsd(dex.volume24h)}</b></div>
+              <div>
+                <span>24H TRADES</span>
+                <b>
+                  {dex.buys24h == null && dex.sells24h == null
+                    ? "—"
+                    : `${Number(dex.buys24h || 0).toLocaleString()} buys · ${Number(dex.sells24h || 0).toLocaleString()} sells`}
+                </b>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="dexPending">
+            <b>DEXSCREENER IS STILL INDEXING THIS TOKEN.</b>
+            <p>
+              The contract is live onchain. The chart and trading statistics will
+              appear here automatically once DexScreener discovers a market for it.
+            </p>
+            {record.token_address && <code>{record.token_address}</code>}
+          </div>
+        )}
+      </section>
 
       <section className="sourceDisclosure">
         <b>SOURCE ≠ ENDORSEMENT</b>
