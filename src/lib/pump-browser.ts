@@ -8,6 +8,7 @@ import {
   PublicKey,
   Transaction,
 } from "@solana/web3.js";
+import { NATIVE_MINT } from "@solana/spl-token";
 import {
   getBuyTokenAmountFromSolAmount,
   OnlinePumpSdk,
