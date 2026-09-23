@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type Registry = {
   status: "reserved" | "live";
-  venue: "stonkfun" | "pons";
+  venue: "stonkfun" | "pons" | "pumpfun";
   chain: "solana" | "robinhood";
   token_address: string | null;
   tx_hash: string | null;
@@ -29,6 +29,24 @@ type Pair = {
   name?: string;
   category?: string;
   tokenProgram?: string;
+};
+
+type PumpCaps = {
+  holderRewardsEnabled: boolean;
+  quotes: Array<{
+    mint: string;
+    symbol?: string;
+    source: "sol" | "global" | "quoteControl";
+    initialVirtualQuoteReserves?: string | null;
+  }>;
+  options: {
+    mayhemMode: boolean;
+    holderRewards: boolean;
+    initialBuy: boolean;
+    creatorFeeSharing: boolean;
+    maxFeeShareholders: number;
+    customCreatorFeeForEligiblePairs: boolean;
+  };
 };
 
 type PonsCaps = {
@@ -60,7 +78,7 @@ export default function XLaunchApp() {
   const [resolved, setResolved] = useState<Resolved | null>(null);
   const [resolveError, setResolveError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [venue, setVenue] = useState<"stonkfun" | "pons">("stonkfun");
+  const [venue, setVenue] = useState<"stonkfun" | "pons" | "pumpfun">("stonkfun");
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -90,6 +108,16 @@ export default function XLaunchApp() {
   const [exemptions, setExemptions] = useState("");
   const [salt, setSalt] = useState("");
 
+  const [pump, setPump] = useState<PumpCaps | null>(null);
+  const [pumpQuote, setPumpQuote] = useState("");
+  const [pumpMayhem, setPumpMayhem] = useState(false);
+  const [pumpHolderReward, setPumpHolderReward] = useState(false);
+  const [pumpCreatorFeeBps, setPumpCreatorFeeBps] = useState(0);
+  const [pumpOpeningBuy, setPumpOpeningBuy] = useState("0");
+
+  const [feeRoute, setFeeRoute] = useState<"author_xmoney" | "developer" | "custom">("developer");
+  const [customFeeWallet, setCustomFeeWallet] = useState("");
+
   const [advanced, setAdvanced] = useState(false);
   const [status, setStatus] = useState("");
 
@@ -97,8 +125,9 @@ export default function XLaunchApp() {
     Promise.all([
       fetch("/api/venues/stonkfun").then((r) => r.json()),
       fetch("/api/venues/pons").then((r) => r.json()),
+      fetch("/api/venues/pumpfun").then((r) => r.json()),
     ])
-      .then(([stonk, ponsData]) => {
+      .then(([stonk, ponsData, pumpData]) => {
         const pairs = Array.isArray(stonk?.pairs) ? stonk.pairs : [];
         setStonkPairs(pairs);
         if (pairs[0]?.mint) setStonkPair(pairs[0].mint);
@@ -106,6 +135,10 @@ export default function XLaunchApp() {
           setPons(ponsData);
           const firstEnabled = ponsData.configs?.find((x: { enabled: boolean }) => x.enabled);
           if (firstEnabled) setPonsConfig(firstEnabled.id);
+        }
+        if (!pumpData?.error) {
+          setPump(pumpData);
+          if (pumpData.quotes?.[0]?.mint) setPumpQuote(pumpData.quotes[0].mint);
         }
       })
       .catch(() => {});
@@ -188,8 +221,8 @@ export default function XLaunchApp() {
         <div className="kicker">END PVP TOKENS</div>
         <h1>TURN A POST<br />INTO <span>A TOKEN.</span></h1>
         <p className="lead">
-          One X post becomes one canonical XLaunch token on one chain. Launch through StonkFun or
-          Pons. Your wallet signs. XLaunch never takes custody.
+          One X post becomes one canonical XLaunch token on one chain. Launch through StonkFun,
+          Pons, or Pump.fun. Your wallet signs. XLaunch never takes custody.
         </p>
 
         <div className="paste">
@@ -315,6 +348,16 @@ export default function XLaunchApp() {
                 <small>ROBINHOOD CHAIN</small>
                 <i>{pons?.launchEnabled ? "LAUNCHING OPEN" : "CHECKING CHAIN"}</i>
               </button>
+
+              <button
+                type="button"
+                className={venue === "pumpfun" ? "active" : ""}
+                onClick={() => setVenue("pumpfun")}
+              >
+                <span>PUMP.FUN</span>
+                <small>SOLANA</small>
+                <i>{pump?.quotes?.length ? `${pump.quotes.length} LIVE PAIRS` : "CHECKING CHAIN"}</i>
+              </button>
             </div>
 
             {venue === "stonkfun" ? (
@@ -375,7 +418,7 @@ export default function XLaunchApp() {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : venue === "pons" ? (
               <div className="venueForm">
                 <div className="grid two">
                   <label>
@@ -443,6 +486,129 @@ export default function XLaunchApp() {
                   <span>LIVE PONS LAUNCH FEE</span>
                   <code>{pons?.launchFeeEth || "—"} ETH</code>
                 </div>
+              </div>
+            ) : (
+              <div className="venueForm">
+                <div className="grid two">
+                  <label>
+                    <span>PAIR</span>
+                    <select value={pumpQuote} onChange={(event) => setPumpQuote(event.target.value)}>
+                      {(pump?.quotes || []).map((quote) => (
+                        <option key={quote.mint} value={quote.mint}>
+                          {quote.symbol || `${quote.mint.slice(0, 6)}…`} · {quote.source}
+                        </option>
+                      ))}
+                    </select>
+                    <small>Loaded from Pump.fun&apos;s current onchain supported quote set.</small>
+                  </label>
+
+                  <label>
+                    <span>OPENING / DEV BUY</span>
+                    <input
+                      value={pumpOpeningBuy}
+                      onChange={(event) => setPumpOpeningBuy(event.target.value)}
+                      inputMode="decimal"
+                    />
+                    <small>Quoted in the selected Pump.fun pair asset.</small>
+                  </label>
+                </div>
+
+                <div className="grid two">
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={pumpMayhem}
+                      onChange={(event) => setPumpMayhem(event.target.checked)}
+                    />
+                    <span>MAYHEM MODE</span>
+                  </label>
+
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={pumpHolderReward}
+                      disabled={!pump?.holderRewardsEnabled}
+                      onChange={(event) => setPumpHolderReward(event.target.checked)}
+                    />
+                    <span>HOLDER REWARDS</span>
+                  </label>
+                </div>
+
+                <label>
+                  <span>CUSTOM CREATOR FEE BPS</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={pumpCreatorFeeBps}
+                    onChange={(event) => setPumpCreatorFeeBps(Math.max(0, Number(event.target.value) || 0))}
+                  />
+                  <small>
+                    Used only where Pump.fun&apos;s current quote/config permits a custom creator fee.
+                    SOL and USDC use Pump.fun&apos;s standard schedule.
+                  </small>
+                </label>
+
+                <div className="liveRead">
+                  <span>PUMP.FUN OPTIONS</span>
+                  <code>
+                    {pump?.holderRewardsEnabled ? "HOLDER REWARDS LIVE" : "HOLDER REWARDS PAUSED"}
+                  </code>
+                </div>
+              </div>
+            )}
+
+            <div className="sectionLabel venueLabel">04 / CREATOR FEES</div>
+            {(venue === "stonkfun" && stonkMode === "reward") || (venue === "pumpfun" && pumpHolderReward) ? (
+              <div className="lockedSocial">
+                <div>
+                  <span>FEE DESTINATION</span>
+                  <b>HOLDER REWARDS</b>
+                </div>
+                <small>
+                  This launch mode routes creator/reward fees to holders, so there is no developer,
+                  custom-wallet, or X Money creator-fee destination.
+                </small>
+              </div>
+            ) : (
+              <div className="venueForm">
+                <label>
+                  <span>WHERE SHOULD CREATOR FEES GO?</span>
+                  <select
+                    value={feeRoute}
+                    onChange={(event) =>
+                      setFeeRoute(event.target.value as "author_xmoney" | "developer" | "custom")
+                    }
+                  >
+                    <option value="author_xmoney">
+                      Original X author via X Money · @{resolved.post.handle || "author"}
+                    </option>
+                    <option value="developer">Developer · connected wallet</option>
+                    <option value="custom">Custom wallet / charity</option>
+                  </select>
+                  <small>
+                    X Money routing is publicly tracked on the token page. XLaunch never represents
+                    itself as affiliated with X or X Money.
+                  </small>
+                </label>
+
+                {feeRoute === "custom" && (
+                  <label>
+                    <span>CUSTOM FEE WALLET</span>
+                    <input
+                      value={customFeeWallet}
+                      onChange={(event) => setCustomFeeWallet(event.target.value)}
+                      placeholder={venue === "pons" ? "0x…" : "Solana address"}
+                    />
+                  </label>
+                )}
+
+                {feeRoute === "author_xmoney" && (
+                  <div className="liveRead">
+                    <span>PUBLIC PAYOUT RECIPIENT</span>
+                    <code>@{resolved.post.handle || "author"} · X MONEY</code>
+                  </div>
+                )}
               </div>
             )}
 
@@ -529,7 +695,13 @@ export default function XLaunchApp() {
               <div><span>CANONICAL REGISTRY</span><b>https://xlaunch.it/post/{resolved.post.id}</b></div>
               <div>
                 <span>DESTINATION</span>
-                <b>{venue === "pons" ? "PONS · ROBINHOOD CHAIN" : "STONKFUN · SOLANA"}</b>
+                <b>
+                  {venue === "pons"
+                    ? "PONS · ROBINHOOD CHAIN"
+                    : venue === "pumpfun"
+                      ? "PUMP.FUN · SOLANA"
+                      : "STONKFUN · SOLANA"}
+                </b>
               </div>
             </div>
 
