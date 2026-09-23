@@ -66,12 +66,12 @@ Set:
 
 The normal account sign-in requests `tweet.read users.read`.
 
-## 4. @launchonx automation
+## 4. @launchedonx automation
 
 Public bot:
 
 ```
-@launchonx
+@launchedonx
 ```
 
 Human managing account:
@@ -80,7 +80,7 @@ Human managing account:
 @ShayanelH
 ```
 
-In X account settings, enable the automated-account label for **@launchonx** and connect **@ShayanelH** as its managing account.
+In X account settings, enable the automated-account label for **@launchedonx** and connect **@ShayanelH** as its managing account.
 
 The bot needs a **user-context** X access token that can:
 
@@ -196,7 +196,7 @@ Do not announce broad launch access before this sequence passes.
 8. Exercise an expired reservation and confirm it becomes available again.
 9. Test a custom fee wallet and verify the public route matches onchain state.
 10. Only after the relevant settlement infrastructure is funded/operational, test an X Money or charity route.
-11. Test an @launchonx reply command end-to-end: mention → X verification → wallet proof → signature → launch → final bot reply.
+11. Test an @launchedonx reply command end-to-end: mention → X verification → wallet proof → signature → launch → final bot reply.
 12. Run the market refresh worker and confirm the new token appears under Explore when the market-data source indexes it.
 
 Use controlled amounts for canaries.
@@ -207,7 +207,7 @@ Use controlled amounts for canaries.
 - `/api/readiness` shows all features intended for day one as ready.
 - no secret appears in client JS or repository history.
 - X OAuth callback uses the production domain.
-- @launchonx is labeled as automated and linked to @ShayanelH.
+- @launchedonx is labeled as automated and linked to @ShayanelH.
 - database backups / Neon recovery are available.
 - RPC capacity is sufficient for traffic.
 - workers are running.
