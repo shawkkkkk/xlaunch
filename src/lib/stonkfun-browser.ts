@@ -21,6 +21,8 @@ import {
 } from "@solana/spl-token";
 import {
   buyExactInInstruction,
+  claimCreatorFee as claimCreatorFeeInstruction,
+  getPdaCreatorFeeVaultAuth,
   getPdaCreatorVault,
   getPdaLaunchpadAuth,
   getPdaLaunchpadPoolId,
@@ -327,5 +329,117 @@ export async function launchOnStonkFun(input: StonkFunLaunchInput) {
     txHash: signature,
     tokenAddress: mint.toBase58(),
     feeRecipient: creator.toBase58(),
+  };
+}
+
+
+export async function claimStonkFunCreatorFees(args: {
+  quoteMint: string;
+  expectedRecipient?: string | null;
+}) {
+  const wallet = provider();
+  const creator = await connectSolanaWallet();
+  if (
+    args.expectedRecipient &&
+    creator.toBase58() !== args.expectedRecipient
+  ) {
+    throw new Error(
+      "Connect the StonkFun creator-fee recipient wallet shown on the token before claiming.",
+    );
+  }
+
+  const pricing = await stonkGet(
+    `/pricing?quoteMint=${encodeURIComponent(args.quoteMint)}`,
+  );
+  const connection = new Connection(rpcUrl(), "confirmed");
+  const programId = new PublicKey(pricing.curve.programId);
+  const quoteMint = new PublicKey(args.quoteMint);
+
+  const mintAccount = await connection.getAccountInfo(quoteMint, "confirmed");
+  if (!mintAccount) throw new Error("StonkFun quote mint account was not found.");
+  const quoteTokenProgram = mintAccount.owner;
+  if (
+    !quoteTokenProgram.equals(TOKEN_PROGRAM_ID) &&
+    !quoteTokenProgram.equals(TOKEN_2022_PROGRAM_ID)
+  ) {
+    throw new Error("Unsupported StonkFun quote-token program.");
+  }
+
+  const creatorVault = getPdaCreatorVault(
+    programId,
+    creator,
+    quoteMint,
+  ).publicKey;
+  const creatorVaultAuth = getPdaCreatorFeeVaultAuth(programId).publicKey;
+
+  let rawBalance = 0n;
+  try {
+    const balance = await connection.getTokenAccountBalance(
+      creatorVault,
+      "confirmed",
+    );
+    rawBalance = BigInt(balance.value.amount);
+  } catch {
+    rawBalance = 0n;
+  }
+  if (rawBalance <= 0n) {
+    throw new Error(
+      "No StonkFun creator fees are currently claimable for this wallet and quote asset.",
+    );
+  }
+
+  const recipientTokenAccount = getAssociatedTokenAddressSync(
+    quoteMint,
+    creator,
+    false,
+    quoteTokenProgram,
+  );
+
+  const latest = await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({
+    feePayer: creator,
+    recentBlockhash: latest.blockhash,
+  }).add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 250_000 }),
+    createAssociatedTokenAccountIdempotentInstruction(
+      creator,
+      recipientTokenAccount,
+      creator,
+      quoteMint,
+      quoteTokenProgram,
+    ),
+    claimCreatorFeeInstruction(
+      programId,
+      creator,
+      creatorVaultAuth,
+      creatorVault,
+      recipientTokenAccount,
+      quoteMint,
+      quoteTokenProgram,
+    ),
+  );
+
+  const signed = await wallet.signTransaction(transaction);
+  const signature = await connection.sendRawTransaction(signed.serialize(), {
+    skipPreflight: false,
+    maxRetries: 3,
+  });
+  const confirmation = await connection.confirmTransaction(
+    {
+      signature,
+      blockhash: latest.blockhash,
+      lastValidBlockHeight: latest.lastValidBlockHeight,
+    },
+    "confirmed",
+  );
+  if (confirmation.value.err) {
+    throw new Error("StonkFun creator-fee claim failed.");
+  }
+
+  return {
+    wallet: creator.toBase58(),
+    txHash: signature,
+    amountRaw: rawBalance.toString(),
+    quoteMint: quoteMint.toBase58(),
   };
 }
