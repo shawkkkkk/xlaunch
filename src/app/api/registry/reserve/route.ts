@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
             quoteMint: String(body.launchConfig?.quoteMint ?? ""),
             mode: body.launchConfig?.mode === "reward" ? "reward" : "standard",
             rewardBps: Number(body.launchConfig?.rewardBps ?? 0),
+            openingBuy: String(body.launchConfig?.openingBuy ?? "0"),
           }
         : venue === "pumpfun"
           ? {
