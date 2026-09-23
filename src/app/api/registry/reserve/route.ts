@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildLaunchMetadata } from "@/lib/metadata";
-import { reservePost } from "@/lib/db";
+import {
+  getSocialAccount,
+  getSocialCommand,
+  reservePost,
+  updateSocialCommandStatus,
+} from "@/lib/db";
 import { parseXPostUrl } from "@/lib/xpost";
 import { resolveFeeDestination, type FeeRoute } from "@/lib/fees";
 import { verifyReservationProof } from "@/lib/auth";
 import { resolveVerifiedXSource } from "@/lib/x-source";
 import { createDonateCharityConfig } from "@/lib/donate";
+import { readXSession } from "@/lib/x-oauth";
 
 export const runtime = "nodejs";
 
@@ -37,6 +43,49 @@ export async function POST(request: NextRequest) {
       venue,
       wallet,
     });
+
+    const socialCommandId = String(body.socialCommandId || "");
+    let socialCommand: any = null;
+    if (socialCommandId) {
+      if (!/^\d+$/.test(socialCommandId)) {
+        throw new Error("Invalid X social command id.");
+      }
+
+      socialCommand = await getSocialCommand(socialCommandId);
+      if (!socialCommand) {
+        throw new Error("The X social launch command no longer exists.");
+      }
+
+      const session = readXSession(request.cookies.get("xlaunch_x_session")?.value);
+      if (!session || String(session.xUserId) !== String(socialCommand.x_user_id)) {
+        return NextResponse.json(
+          { error: "Sign in with the X account that wrote this launch command." },
+          { status: 403 },
+        );
+      }
+
+      if (
+        String(socialCommand.source_post_id) !== post.id ||
+        String(socialCommand.venue) !== venue
+      ) {
+        throw new Error("The X social command does not match this post and venue.");
+      }
+
+      const account = await getSocialAccount(String(socialCommand.x_user_id)) as any;
+      const linkedWallet =
+        venue === "pons" ? account?.evm_wallet : account?.solana_wallet;
+      if (!linkedWallet) {
+        throw new Error("Link the required wallet to this X account before launching.");
+      }
+
+      const walletMatches =
+        venue === "pons"
+          ? String(linkedWallet).toLowerCase() === wallet.toLowerCase()
+          : String(linkedWallet) === wallet;
+      if (!walletMatches) {
+        throw new Error("Connect the wallet linked to this X account for the social launch.");
+      }
+    }
 
     const source = await resolveVerifiedXSource(post.id);
 
@@ -144,6 +193,13 @@ export async function POST(request: NextRequest) {
         { error: "This post is already reserved or tokenized through XLaunch." },
         { status: 409 },
       );
+    }
+
+    if (socialCommand) {
+      await updateSocialCommandStatus({
+        commandPostId: socialCommandId,
+        status: "reserved",
+      });
     }
 
     return NextResponse.json({ record, metadata, feeDestination });
