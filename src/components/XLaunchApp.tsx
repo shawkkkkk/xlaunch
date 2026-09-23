@@ -100,6 +100,22 @@ type PonsCaps = {
   }>;
 };
 
+function XBrandMark({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`xBrandMark ${className}`.trim()}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="currentColor"
+        d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+      />
+    </svg>
+  );
+}
+
 function suggestedTicker(handle: string, text: string) {
   const firstWord = text
     .replace(/https?:\/\/\S+/g, "")
@@ -710,9 +726,7 @@ export default function XLaunchApp() {
       <header className="xlHeader">
         <a className="xlLogo xlAppear xlScale" href="#launch" aria-label="XLaunch home">
           <span className="xlLogoMark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M5 5L19 19M19 5L5 19" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"/>
-            </svg>
+            <XBrandMark />
           </span>
           <span>XLaunch</span>
         </a>
@@ -813,7 +827,7 @@ export default function XLaunchApp() {
           </p>
 
           <div className="xlPaste xlAppear xlButtonIn">
-            <span className="xlXMark">𝕏</span>
+            <span className="xlXMark"><XBrandMark /></span>
             <input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
@@ -843,7 +857,7 @@ export default function XLaunchApp() {
           <span>One canonical token per X post</span>
         </div>
         <div className="xlStat xlAppear xlStatIn">
-          <span className="xlStatIcon">𝕏</span>
+          <span className="xlStatIcon"><XBrandMark /></span>
           <span>Launch directly with @launchonx_</span>
         </div>
       </div>
@@ -855,12 +869,12 @@ export default function XLaunchApp() {
 
             <div className="postCard">
               <div className="postHead">
-                <div className="avatar">𝕏</div>
+                <div className="avatar"><XBrandMark /></div>
                 <div>
                   <b>{resolved.post.authorName || "X user"}</b>
                   <span>@{resolved.post.handle || "unknown"}</span>
                 </div>
-                <div className="xMark">𝕏</div>
+                <div className="xMark"><XBrandMark /></div>
               </div>
 
               <p>{resolved.post.text || "Post content remains tied to its immutable X status id."}</p>
