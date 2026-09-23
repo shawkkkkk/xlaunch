@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { connectRobinhoodWallet, launchOnPons } from "@/lib/pons-browser";
-import { connectSolanaWallet, launchOnPump } from "@/lib/pump-browser";
+import {
+  connectRobinhoodWallet,
+  launchOnPons,
+  signRobinhoodMessage,
+} from "@/lib/pons-browser";
+import {
+  connectSolanaWallet,
+  launchOnPump,
+  signSolanaMessage,
+} from "@/lib/pump-browser";
 import { launchOnStonkFun } from "@/lib/stonkfun-browser";
 
 type Registry = {
@@ -242,6 +250,38 @@ export default function XLaunchApp() {
   async function reserveLaunch(wallet: string) {
     if (!resolved) throw new Error("Resolve an X post first.");
 
+    setStatus("Sign the reservation message to prove wallet ownership…");
+    const challengeResponse = await fetch("/api/auth/challenge", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        postId: resolved.post.id,
+        venue,
+        wallet,
+      }),
+    });
+    const challenge = await challengeResponse.json();
+    if (!challengeResponse.ok) {
+      throw new Error(
+        challenge.error || "Could not create wallet reservation challenge.",
+      );
+    }
+
+    const proof =
+      venue === "pons"
+        ? await signRobinhoodMessage(challenge.message)
+        : await signSolanaMessage(challenge.message);
+
+    const sameWallet =
+      venue === "pons"
+        ? proof.wallet.toLowerCase() === wallet.toLowerCase()
+        : proof.wallet === wallet;
+    if (!sameWallet) {
+      throw new Error(
+        "The wallet that signed the reservation changed. Reconnect and try again.",
+      );
+    }
+
     const launchConfig =
       venue === "stonkfun"
         ? { quoteMint: stonkPair, mode: stonkMode, rewardBps }
@@ -282,6 +322,10 @@ export default function XLaunchApp() {
         stonkMode,
         pumpHolderReward,
         launchConfig,
+        auth: {
+          token: challenge.token,
+          signature: proof.signature,
+        },
       }),
     });
 
