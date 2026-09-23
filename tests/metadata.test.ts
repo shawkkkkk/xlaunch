@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildLaunchMetadata, canonicalPostPage } from "../src/lib/metadata";
 
 describe("launch metadata", () => {
-  it("defaults website to xlaunch.it, not the provenance page", () => {
+  it("defaults website to launchonx.net, not the provenance page", () => {
     const result = buildLaunchMetadata({ postId: "123", name: "Hello", symbol: "hi" });
-    expect(result.socials.website).toBe("https://xlaunch.it");
+    expect(result.socials.website).toBe("https://launchonx.net");
     expect(result.source.registry).toBe(canonicalPostPage("123"));
-    expect(result.source.registry).toBe("https://xlaunch.it/post/123");
+    expect(result.source.registry).toBe("https://launchonx.net/post/123");
   });
 
   it("generates an XLaunch post card when no token image is supplied", () => {
@@ -15,7 +15,7 @@ describe("launch metadata", () => {
       name: "Hello",
       symbol: "HI",
     });
-    expect(result.image).toBe("https://xlaunch.it/api/post-card/123");
+    expect(result.image).toBe("https://launchonx.net/api/post-card/123");
   });
 
   it("always points twitter to the source post", () => {
