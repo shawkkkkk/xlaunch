@@ -18,7 +18,13 @@ import { PONS_FACTORY, PONS_FEE_ESCROW, PONS_LAUNCH_AND_BUY, robinhoodChain } fr
 
 type Eip1193Provider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>;
+  providers?: Eip1193Provider[];
+  isMetaMask?: boolean;
+  isRabby?: boolean;
+  isCoinbaseWallet?: boolean;
 };
+
+export type EvmWalletChoice = "metamask" | "rabby" | "coinbase" | "browser";
 
 declare global {
   interface Window {
@@ -57,15 +63,63 @@ const publicClient = () =>
     transport: http(robinhoodChain.rpcUrls.default.http[0]),
   });
 
-async function provider() {
-  if (typeof window === "undefined" || !window.ethereum) {
-    throw new Error("No EVM wallet found. Install MetaMask, Rabby, or another EVM wallet.");
-  }
-  return window.ethereum;
+function injectedProviders(): Eip1193Provider[] {
+  if (typeof window === "undefined" || !window.ethereum) return [];
+  const providers = window.ethereum.providers?.length
+    ? window.ethereum.providers
+    : [window.ethereum];
+  return Array.from(new Set(providers));
 }
 
-export async function connectRobinhoodWallet() {
-  const p = await provider();
+export function availableEvmWallets(): Array<{ id: EvmWalletChoice; label: string }> {
+  const providers = injectedProviders();
+  const wallets: Array<{ id: EvmWalletChoice; label: string }> = [];
+  if (providers.some((p) => p.isMetaMask && !p.isRabby)) {
+    wallets.push({ id: "metamask", label: "MetaMask" });
+  }
+  if (providers.some((p) => p.isRabby)) {
+    wallets.push({ id: "rabby", label: "Rabby" });
+  }
+  if (providers.some((p) => p.isCoinbaseWallet)) {
+    wallets.push({ id: "coinbase", label: "Coinbase Wallet" });
+  }
+
+  const known = providers.filter(
+    (p) => (p.isMetaMask && !p.isRabby) || p.isRabby || p.isCoinbaseWallet,
+  );
+  if (providers.some((p) => !known.includes(p))) {
+    wallets.push({ id: "browser", label: "Browser EVM wallet" });
+  }
+  return wallets;
+}
+
+function provider(choice?: EvmWalletChoice) {
+  const providers = injectedProviders();
+  if (!providers.length) {
+    throw new Error("No EVM wallet found. Install MetaMask, Rabby, Coinbase Wallet, or another EVM wallet.");
+  }
+
+  if (!choice) return providers[0];
+
+  const selected =
+    choice === "metamask"
+      ? providers.find((p) => p.isMetaMask && !p.isRabby)
+      : choice === "rabby"
+        ? providers.find((p) => p.isRabby)
+        : choice === "coinbase"
+          ? providers.find((p) => p.isCoinbaseWallet)
+          : providers.find(
+              (p) => !(p.isMetaMask && !p.isRabby) && !p.isRabby && !p.isCoinbaseWallet,
+            );
+
+  if (!selected) {
+    throw new Error(`The selected EVM wallet (${choice}) is not available in this browser.`);
+  }
+  return selected;
+}
+
+export async function connectRobinhoodWallet(choice?: EvmWalletChoice) {
+  const p = provider(choice);
   const accounts = (await p.request({ method: "eth_requestAccounts" })) as string[];
   if (!accounts?.[0] || !isAddress(accounts[0])) throw new Error("Wallet did not return an address.");
 
@@ -89,9 +143,9 @@ export async function connectRobinhoodWallet() {
   return accounts[0] as Address;
 }
 
-export async function signRobinhoodMessage(message: string) {
-  const account = await connectRobinhoodWallet();
-  const p = await provider();
+export async function signRobinhoodMessage(message: string, choice?: EvmWalletChoice) {
+  const account = await connectRobinhoodWallet(choice);
+  const p = provider(choice);
   const wallet = createWalletClient({
     account,
     chain: robinhoodChain,
@@ -204,11 +258,12 @@ export type PonsLaunchInput = {
   openingBuySlippageBps?: number;
   exemptions?: string;
   salt?: string;
+  walletProvider?: EvmWalletChoice;
 };
 
 export async function launchOnPons(input: PonsLaunchInput) {
-  const account = await connectRobinhoodWallet();
-  const p = await provider();
+  const account = await connectRobinhoodWallet(input.walletProvider);
+  const p = provider(input.walletProvider);
   const wallet = createWalletClient({
     account,
     chain: robinhoodChain,
