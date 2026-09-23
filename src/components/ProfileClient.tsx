@@ -1,280 +1,279 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
-type ProfileData = {
-  authenticated: boolean;
-  profile: {
-    x_user_id: string;
-    x_handle: string;
-    display_name: string | null;
-    avatar_url: string | null;
-  };
-  wallets: {
-    evm: string | null;
-    solana: string | null;
-    provider: string | null;
-    embeddedProvisioningConfigured: boolean;
-    keyExportConfigured: boolean;
-  };
-  tokens: Array<any>;
-  fees: Array<any>;
-  activity: Array<any>;
+type Profile = {
+  x_user_id: string;
+  x_handle: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  evm_wallet_address: string | null;
+  solana_wallet_address: string | null;
+  wallet_provider: string | null;
 };
 
-type Tab = "tokens" | "fees" | "wallet" | "activity";
+type Token = {
+  post_id: string;
+  post_url: string;
+  venue: string;
+  chain: string;
+  token_name: string;
+  token_symbol: string;
+  token_address: string | null;
+  tx_hash: string | null;
+  fee_route: string;
+  fee_routing_status: string;
+  confirmed_at: string | null;
+};
 
-function short(value?: string | null) {
-  if (!value) return "—";
-  if (value.length < 16) return value;
-  return value.slice(0, 7) + "…" + value.slice(-6);
+type FeeEvent = {
+  id: string | number;
+  post_id: string;
+  event_type: string;
+  asset: string | null;
+  amount: string | null;
+  usd_amount: string | null;
+  chain_tx_hash: string | null;
+  created_at: string;
+  token_name: string;
+  token_symbol: string;
+  venue: string;
+};
+
+type Activity = {
+  id: string | number;
+  operation: string;
+  chain: string;
+  status: string;
+  tx_hash: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+function compact(address?: string | null) {
+  if (!address) return "NOT PROVISIONED";
+  if (address.length < 16) return address;
+  return address.slice(0, 7) + "…" + address.slice(-6);
 }
 
-export default function ProfileClient() {
-  const [data, setData] = useState<ProfileData | null>(null);
-  const [tab, setTab] = useState<Tab>("tokens");
-  const [error, setError] = useState("");
+function WalletCard({
+  title,
+  networks,
+  address,
+  providerReady,
+}: {
+  title: string;
+  networks: string;
+  address?: string | null;
+  providerReady: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/profile/me", { cache: "no-store" })
-      .then(async (response) => {
-        if (response.status === 401) {
-          window.location.href = "/api/x/oauth/start?returnTo=/profile";
-          return null;
-        }
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error || "Profile unavailable.");
-        return body;
-      })
-      .then((body) => body && setData(body))
-      .catch((reason) =>
-        setError(reason instanceof Error ? reason.message : "Profile unavailable."),
-      );
-  }, []);
-
-  const totalFeeEvents = data?.fees?.length || 0;
-  const liveTokens = data?.tokens?.length || 0;
-  const walletCount = Number(Boolean(data?.wallets.evm)) + Number(Boolean(data?.wallets.solana));
-
-  const tabs: Array<{ id: Tab; label: string; count?: number }> = useMemo(
-    () => [
-      { id: "tokens", label: "TOKENS", count: liveTokens },
-      { id: "fees", label: "FEES", count: totalFeeEvents },
-      { id: "wallet", label: "WALLET", count: walletCount },
-      { id: "activity", label: "ACTIVITY", count: data?.activity?.length || 0 },
-    ],
-    [liveTokens, totalFeeEvents, walletCount, data?.activity?.length],
-  );
-
-  async function logout() {
-    await fetch("/api/profile/logout", { method: "POST" });
-    window.location.href = "/";
-  }
-
-  async function copy(value: string) {
-    await navigator.clipboard.writeText(value);
-  }
-
-  if (error) {
-    return <section className="profileShell"><div className="socialError">{error}</div></section>;
-  }
-
-  if (!data) {
-    return <section className="profileShell"><div className="sectionLabel">LOADING PROFILE…</div></section>;
+  async function copyAddress() {
+    if (!address) return;
+    await navigator.clipboard.writeText(address);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
   }
 
   return (
-    <section className="profileShell">
-      <header className="profileHeader">
+    <article className="profileWalletCard">
+      <div className="profileWalletTop">
+        <div>
+          <span>{networks}</span>
+          <h3>{title}</h3>
+        </div>
+        <i>{address ? "ACTIVE" : providerReady ? "READY TO CREATE" : "SETUP REQUIRED"}</i>
+      </div>
+      <code>{address || "Wallet will be generated for this X account."}</code>
+      <div className="walletActions">
+        <button disabled={!address} onClick={copyAddress}>
+          {copied ? "COPIED" : "RECEIVE"}
+        </button>
+        <button disabled={!address}>SEND</button>
+        <button disabled={!address}>SWAP</button>
+        <button disabled={!address}>BRIDGE</button>
+        <button className="dangerAction" disabled={!address}>
+          EXPORT KEY
+        </button>
+      </div>
+      {!address && (
+        <p>
+          {providerReady
+            ? "Embedded-wallet provisioning is enabled for this deployment."
+            : "Embedded-wallet provider credentials are not configured on this deployment yet."}
+        </p>
+      )}
+    </article>
+  );
+}
+
+export default function ProfileClient({
+  profile,
+  tokens,
+  fees,
+  activity,
+  walletProviderConfigured,
+}: {
+  profile: Profile;
+  tokens: Token[];
+  fees: FeeEvent[];
+  activity: Activity[];
+  walletProviderConfigured: boolean;
+}) {
+  const [tab, setTab] = useState<"tokens" | "fees" | "wallets" | "activity">("tokens");
+
+  const totalFees = useMemo(
+    () =>
+      fees
+        .filter((item) => item.usd_amount)
+        .reduce((sum, item) => sum + Number(item.usd_amount || 0), 0),
+    [fees],
+  );
+
+  return (
+    <>
+      <header className="profileHero">
         <div className="profileIdentity">
-          {data.profile.avatar_url ? (
-            <img src={data.profile.avatar_url} alt="" />
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt="" />
           ) : (
             <div className="profileAvatar">X</div>
           )}
           <div>
             <div className="sectionLabel">XLAUNCH PROFILE</div>
-            <h1>{data.profile.display_name || "XLAUNCHER"}</h1>
-            <a
-              href={"https://x.com/" + data.profile.x_handle}
-              target="_blank"
-              rel="noreferrer"
-            >
-              @{data.profile.x_handle} ↗
-            </a>
+            <h1>{profile.display_name || "@" + profile.x_handle}</h1>
+            <p>@{profile.x_handle}</p>
           </div>
         </div>
 
         <div className="profileStats">
-          <div><b>{liveTokens}</b><span>TOKENS</span></div>
-          <div><b>{walletCount}</b><span>WALLETS</span></div>
-          <div><b>{totalFeeEvents}</b><span>FEE EVENTS</span></div>
+          <div><span>LAUNCHED</span><b>{tokens.length}</b></div>
+          <div><span>FEE EVENTS</span><b>{fees.length}</b></div>
+          <div><span>RECORDED USD</span><b>{"$" + totalFees.toFixed(2)}</b></div>
         </div>
       </header>
 
       <div className="profileTabs">
-        {tabs.map((item) => (
+        {(["tokens", "fees", "wallets", "activity"] as const).map((item) => (
           <button
-            key={item.id}
-            className={tab === item.id ? "active" : ""}
-            onClick={() => setTab(item.id)}
+            key={item}
+            className={tab === item ? "active" : ""}
+            onClick={() => setTab(item)}
           >
-            {item.label}
-            <small>{item.count ?? 0}</small>
+            {item.toUpperCase()}
           </button>
         ))}
       </div>
 
-      {tab === "tokens" && (
-        <div className="profilePanel">
-          <div className="panelHead">
-            <div>
-              <div className="sectionLabel">CANONICAL LAUNCHES</div>
-              <h2>YOUR TOKENS.</h2>
-            </div>
-            <a className="profileAction" href="/">LAUNCH A POST →</a>
-          </div>
-
-          {data.tokens.length ? (
-            <div className="profileRows">
-              {data.tokens.map((token) => (
-                <a className="profileRow" href={"/post/" + token.post_id} key={token.post_id}>
-                  <div className="tokenMono">{"$" + token.token_symbol}</div>
-                  <div><b>{token.token_name}</b><span>{token.venue.toUpperCase()} · {token.chain.toUpperCase()}</span></div>
-                  <code>{short(token.token_address)}</code>
-                  <span>{token.fee_route.replaceAll("_", " ").toUpperCase()}</span>
-                  <i>VIEW →</i>
-                </a>
-              ))}
-            </div>
-          ) : (
-            <div className="profileEmpty">No confirmed XLaunch tokens yet.</div>
-          )}
-        </div>
-      )}
-
-      {tab === "fees" && (
-        <div className="profilePanel">
-          <div className="panelHead">
-            <div>
-              <div className="sectionLabel">CREATOR FEE LEDGER</div>
-              <h2>FEES.</h2>
-            </div>
-            <button className="profileAction disabled" disabled>
-              CLAIM ALL — COMING ONLINE
-            </button>
-          </div>
-
-          {data.fees.length ? (
-            <div className="profileRows">
-              {data.fees.map((event) => (
-                <div className="profileRow" key={String(event.id)}>
-                  <div className="tokenMono">{"$" + event.token_symbol}</div>
-                  <div><b>{String(event.event_type).replaceAll("_", " ").toUpperCase()}</b><span>{event.venue.toUpperCase()}</span></div>
-                  <code>{event.amount ? String(event.amount) + " " + String(event.asset || "") : "—"}</code>
-                  <span>{new Date(event.created_at).toLocaleDateString()}</span>
-                  {event.proof_url ? <a href={event.proof_url} target="_blank" rel="noreferrer">PROOF ↗</a> : <i>—</i>}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="profileEmpty">
-              Fee accruals, claims, X Money payouts, and charity settlements will appear here.
-            </div>
-          )}
-
-          <div className="profileNotice">
-            Claim execution is being wired venue-by-venue. XLaunch will never mark fees claimed
-            until the claim transaction is confirmed.
-          </div>
-        </div>
-      )}
-
-      {tab === "wallet" && (
-        <div className="profilePanel">
-          <div className="panelHead">
-            <div>
-              <div className="sectionLabel">EMBEDDED + LINKED WALLETS</div>
-              <h2>WALLET.</h2>
-            </div>
-            <div className="walletProviderState">
-              {data.wallets.embeddedProvisioningConfigured ? "EMBEDDED WALLET READY" : "EMBEDDED WALLET SETUP PENDING"}
-            </div>
-          </div>
-
-          <div className="walletCards">
-            <div className="walletCard">
-              <div className="walletCardHead"><span>EVM</span><b>ETHEREUM + ROBINHOOD</b></div>
-              <code>{data.wallets.evm || "No EVM wallet linked yet."}</code>
-              <div className="walletActions">
-                {data.wallets.evm && <button onClick={() => copy(data.wallets.evm!)}>COPY / RECEIVE</button>}
-                <button disabled={!data.wallets.evm}>SEND</button>
-                <button disabled={!data.wallets.evm}>SWAP</button>
-                <button disabled={!data.wallets.evm}>BRIDGE</button>
+      <section className="profileBody">
+        {tab === "tokens" && (
+          <div>
+            <div className="sectionLabel">CANONICAL LAUNCHES</div>
+            <h2>YOUR TOKENS.</h2>
+            {tokens.length ? (
+              <div className="profileRows">
+                {tokens.map((token) => (
+                  <a className="profileRow" key={token.post_id} href={"/post/" + token.post_id}>
+                    <div>
+                      <b>{"$" + token.token_symbol}</b>
+                      <span>{token.token_name}</span>
+                    </div>
+                    <span>{token.venue.toUpperCase()}</span>
+                    <span>{token.fee_route.replaceAll("_", " ").toUpperCase()}</span>
+                    <code>{compact(token.token_address)}</code>
+                    <strong>VIEW →</strong>
+                  </a>
+                ))}
               </div>
-            </div>
-
-            <div className="walletCard">
-              <div className="walletCardHead"><span>SOLANA</span><b>SOLANA</b></div>
-              <code>{data.wallets.solana || "No Solana wallet linked yet."}</code>
-              <div className="walletActions">
-                {data.wallets.solana && <button onClick={() => copy(data.wallets.solana!)}>COPY / RECEIVE</button>}
-                <button disabled={!data.wallets.solana}>SEND</button>
-                <button disabled={!data.wallets.solana}>SWAP</button>
-                <button disabled={!data.wallets.solana}>BRIDGE</button>
-              </div>
-            </div>
+            ) : (
+              <div className="profileEmpty">No confirmed XLaunch tokens yet.</div>
+            )}
           </div>
+        )}
 
-          <div className="keyExportBox">
-            <div>
-              <span>PRIVATE KEY EXPORT</span>
-              <b>USER-CONTROLLED EXPORT ONLY.</b>
+        {tab === "fees" && (
+          <div>
+            <div className="sectionLabel">CREATOR FEES</div>
+            <h2>CLAIM & TRACK.</h2>
+            <div className="profileNotice">
+              Claimability is verified per venue. XLaunch never marks a fee as claimed
+              until the venue transaction or settlement record confirms it.
+            </div>
+            {fees.length ? (
+              <div className="profileRows">
+                {fees.map((fee) => (
+                  <div className="profileRow" key={String(fee.id)}>
+                    <div><b>{"$" + fee.token_symbol}</b><span>{fee.event_type.replaceAll("_", " ")}</span></div>
+                    <span>{fee.venue.toUpperCase()}</span>
+                    <span>{fee.amount ? fee.amount + " " + (fee.asset || "") : "—"}</span>
+                    <code>{fee.usd_amount ? "$" + fee.usd_amount : "—"}</code>
+                    <strong>{new Date(fee.created_at).toLocaleDateString()}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="profileEmpty">No recorded fee activity yet.</div>
+            )}
+          </div>
+        )}
+
+        {tab === "wallets" && (
+          <div>
+            <div className="sectionLabel">EMBEDDED WALLETS</div>
+            <h2>ONE ACCOUNT.<br />TWO KEYS.</h2>
+            <p className="profileIntro">
+              One EVM wallet works across Ethereum and Robinhood Chain. A separate
+              Solana wallet covers StonkFun and Pump.fun.
+            </p>
+            <div className="profileWalletGrid">
+              <WalletCard
+                title="EVM WALLET"
+                networks="ETHEREUM + ROBINHOOD CHAIN"
+                address={profile.evm_wallet_address}
+                providerReady={walletProviderConfigured}
+              />
+              <WalletCard
+                title="SOLANA WALLET"
+                networks="SOLANA"
+                address={profile.solana_wallet_address}
+                providerReady={walletProviderConfigured}
+              />
+            </div>
+            <div className="keySafety">
+              <b>PRIVATE KEY EXPORT</b>
               <p>
-                XLaunch will never store or render plaintext private keys from its own database.
-                Export will require fresh authentication and the embedded-wallet provider&apos;s
-                user-authorized export flow.
+                Export is an explicit user action. XLaunch should never log, store,
+                transmit or display the private key through its own backend. The final
+                provider integration will open the wallet provider&apos;s isolated
+                export/recovery UI after re-authentication.
               </p>
             </div>
-            <button disabled={!data.wallets.keyExportConfigured}>RE-AUTH & EXPORT</button>
           </div>
+        )}
 
-          <div className="walletToolGrid">
-            <button disabled>SEND</button>
-            <button disabled>SWAP</button>
-            <button disabled>BRIDGE</button>
-            <button onClick={() => setTab("activity")}>ACTIVITY →</button>
+        {tab === "activity" && (
+          <div>
+            <div className="sectionLabel">WALLET ACTIVITY</div>
+            <h2>EVERY ACTION.</h2>
+            {activity.length ? (
+              <div className="profileRows">
+                {activity.map((item) => (
+                  <div className="profileRow" key={String(item.id)}>
+                    <div><b>{item.operation.toUpperCase()}</b><span>{item.chain}</span></div>
+                    <span>{item.status.toUpperCase()}</span>
+                    <span>—</span>
+                    <code>{compact(item.tx_hash)}</code>
+                    <strong>{new Date(item.created_at).toLocaleDateString()}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="profileEmpty">No wallet activity yet.</div>
+            )}
           </div>
-        </div>
-      )}
-
-      {tab === "activity" && (
-        <div className="profilePanel">
-          <div className="panelHead">
-            <div>
-              <div className="sectionLabel">WALLET HISTORY</div>
-              <h2>ACTIVITY.</h2>
-            </div>
-          </div>
-          {data.activity.length ? (
-            <div className="profileRows">
-              {data.activity.map((item) => (
-                <div className="profileRow" key={String(item.id)}>
-                  <div className="tokenMono">{String(item.operation).toUpperCase()}</div>
-                  <div><b>{item.chain.toUpperCase()}</b><span>{item.status.toUpperCase()}</span></div>
-                  <code>{short(item.tx_hash)}</code>
-                  <span>{new Date(item.created_at).toLocaleString()}</span>
-                  <i>{item.status === "confirmed" ? "✓" : "…"}</i>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="profileEmpty">Wallet activity will appear here.</div>
-          )}
-        </div>
-      )}
-
-      <button className="profileLogout" onClick={logout}>SIGN OUT</button>
-    </section>
+        )}
+      </section>
+    </>
   );
 }
