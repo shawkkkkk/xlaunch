@@ -154,6 +154,7 @@ export default function XLaunchApp() {
   const [solWallet, setSolWallet] = useState("");
   const [evmWallet, setEvmWallet] = useState("");
   const [socialCommandId, setSocialCommandId] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const socialPrefillApplied = useRef(false);
 
   useEffect(() => {
@@ -263,6 +264,14 @@ export default function XLaunchApp() {
           .slice(0, 12),
       );
       setDescription(text.slice(0, 500));
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          document.getElementById("launch-builder")?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        });
+      });
     } catch (error) {
       setResolveError(error instanceof Error ? error.message : "Could not resolve post.");
     } finally {
@@ -611,52 +620,119 @@ export default function XLaunchApp() {
   }
 
   return (
-    <main>
-      <nav>
-        <a className="logo" href="/">XLAUNCH</a>
-        <div className="navRule">ONE POST · ONE TOKEN · ONE CHAIN · FOREVER</div>
-        <div className="navActions">
-          <a className="profileLink" href="/explore">EXPLORE</a>
-          <a className="profileLink" href="/profile">PROFILE</a>
-          <button className="wallet" type="button" onClick={connectCurrentWallet}>
+    <main className={resolved ? "xlaunchPage is-resolved" : "xlaunchPage is-idle"}>
+      <div className="xlGrain" aria-hidden="true" />
+      <button
+        className={menuOpen ? "xlMenuBackdrop is-open" : "xlMenuBackdrop"}
+        type="button"
+        aria-label="Close menu"
+        onClick={() => setMenuOpen(false)}
+      />
+
+      <header className="xlHeader">
+        <a className="xlLogo xlAppear xlScale" href="#launch" aria-label="XLaunch home">
+          <span className="xlLogoMark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M5 5L19 19M19 5L5 19" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"/>
+            </svg>
+          </span>
+          <span>XLaunch</span>
+        </a>
+
+        <nav className={menuOpen ? "xlNav is-open" : "xlNav"} aria-label="Primary">
+          <a className="xlNavPill xlAppear xlScale" href="#launch" onClick={() => setMenuOpen(false)}>
+            Launch
+          </a>
+          <a className="xlNavPill xlAppear xlSoft" href="/explore" onClick={() => setMenuOpen(false)}>
+            Explore
+          </a>
+          <a className="xlNavPill xlAppear xlScale" href="/profile" onClick={() => setMenuOpen(false)}>
+            Profile
+          </a>
+          <a
+            className="xlNavPill xlAppear xlSoft"
+            href="https://x.com/xlaunchit"
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => setMenuOpen(false)}
+          >
+            @xlaunchit
+          </a>
+        </nav>
+
+        <div className="xlHeaderActions">
+          <button className="xlButton xlButtonSolid xlAppear xlScale" type="button" onClick={connectCurrentWallet}>
             {activeWallet
               ? activeWallet.slice(0, 5) + "…" + activeWallet.slice(-4)
-              : venue === "pons"
-                ? "CONNECT EVM"
-                : "CONNECT SOL"}
+              : "Connect Wallet"}
+          </button>
+          <button
+            className={menuOpen ? "xlBurger is-open" : "xlBurger"}
+            type="button"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <span/><span/><span/>
           </button>
         </div>
-      </nav>
+      </header>
 
-      <section className="hero">
-        <div className="kicker">END PVP TOKENS</div>
-        <h1>TURN A POST<br />INTO <span>A TOKEN.</span></h1>
-        <p className="lead">
-          One X post becomes one canonical XLaunch token on one chain. Launch through StonkFun,
-          Pons, or Pump.fun. Your wallet signs. XLaunch never takes custody.
-        </p>
+      <section className="xlHero" id="launch">
+        <div className="xlHeroCopy">
+          <div className="xlBadge xlAppear xlPop">
+            <span className="xlSpark" aria-hidden="true">✦</span>
+            End PvP tokens
+          </div>
 
-        <div className="paste">
-          <span>𝕏</span>
-          <input
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="Paste an X post link"
-            onKeyDown={(event) => event.key === "Enter" && void resolvePost()}
-          />
-          <button type="button" onClick={() => void resolvePost()} disabled={loading}>
-            {loading ? "CHECKING…" : "TOKENIZE →"}
-          </button>
-        </div>
+          <h1>
+            <span className="xlHeadlineLine xlAppear xlMask">Turn any X post into</span>
+            <span className="xlHeadlineLine xlAppear xlMask">one <em>canonical token.</em></span>
+          </h1>
 
-        {resolveError && <div className="error">{resolveError}</div>}
-        <div className="heroFine">
-          The first confirmed XLaunch assignment becomes the canonical XLaunch token for that post.
+          <p className="xlLede xlAppear xlSoft">
+            One post. One token. One chain. Forever. Launch through Pump.fun, StonkFun,
+            or Pons while your wallet keeps control.
+          </p>
+
+          <div className="xlPaste xlAppear xlButtonIn">
+            <span className="xlXMark">𝕏</span>
+            <input
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder="Paste an X post link"
+              aria-label="X post URL"
+              onKeyDown={(event) => event.key === "Enter" && void resolvePost()}
+            />
+            <button type="button" onClick={() => void resolvePost()} disabled={loading}>
+              {loading ? "Checking…" : "Tokenize →"}
+            </button>
+          </div>
+
+          {resolveError && <div className="error">{resolveError}</div>}
+          <div className="xlHeroFine xlAppear xlSoft">
+            The first confirmed XLaunch assignment becomes that post&apos;s canonical XLaunch token.
+          </div>
         </div>
       </section>
 
+      <div className="xlStats" aria-label="XLaunch capabilities">
+        <div className="xlStat xlAppear xlStatIn">
+          <span className="xlStatIcon">◎</span>
+          <span>Pump.fun · StonkFun · Pons</span>
+        </div>
+        <div className="xlStat xlAppear xlStatIn">
+          <span className="xlStatIcon">1</span>
+          <span>One canonical token per X post</span>
+        </div>
+        <div className="xlStat xlAppear xlStatIn">
+          <span className="xlStatIcon">𝕏</span>
+          <span>Launch directly with @xlaunchit</span>
+        </div>
+      </div>
+
       {resolved && (
-        <section className="builder">
+        <section className="builder" id="launch-builder">
           <aside className="sourceColumn">
             <div className="sectionLabel">01 / SOURCE</div>
 
