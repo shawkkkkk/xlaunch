@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS xlaunch_posts (
   token_name TEXT NOT NULL,
   token_symbol TEXT NOT NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  fee_route TEXT NOT NULL DEFAULT 'developer' CHECK (fee_route IN ('author_xmoney', 'developer', 'custom', 'holder_rewards')),
+  fee_route TEXT NOT NULL DEFAULT 'developer' CHECK (fee_route IN ('author_xmoney', 'developer', 'custom', 'charity', 'holder_rewards')),
   fee_recipient_handle TEXT,
   fee_recipient_wallet TEXT,
   fee_routing_status TEXT NOT NULL DEFAULT 'requested' CHECK (fee_routing_status IN ('requested', 'onchain_verified', 'not_applicable')),
