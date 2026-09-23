@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export function GET() {
   const database = Boolean(process.env.DATABASE_URL);
   const auth = Boolean(process.env.XLAUNCH_AUTH_SECRET);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://xlaunch.it";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://launchonx.net";
   const solanaRpc = Boolean(
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL || process.env.SOLANA_RPC_URL,
   );
