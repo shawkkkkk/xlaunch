@@ -50,7 +50,7 @@ export async function reservePost(args: {
   feeRoutingStatus?: "requested" | "onchain_verified" | "not_applicable";
   ttlMinutes?: number;
 }) {
-  const ttl = Math.max(1, Math.min(args.ttlMinutes ?? 15, 30));
+  const ttl = Math.max(5, Math.min(args.ttlMinutes ?? 30, 30));
   const rows = await sql()`
     INSERT INTO xlaunch_posts (
       post_id, source_key, post_url, status, venue, chain, reserver_wallet,
@@ -89,14 +89,7 @@ export async function reservePost(args: {
       fee_routing_status = EXCLUDED.fee_routing_status
     WHERE
       xlaunch_posts.status = 'reserved'
-      AND (
-        xlaunch_posts.reservation_expires_at < now()
-        OR xlaunch_posts.reserver_wallet = EXCLUDED.reserver_wallet
-        OR (
-          xlaunch_posts.chain = 'robinhood'
-          AND lower(xlaunch_posts.reserver_wallet) = lower(EXCLUDED.reserver_wallet)
-        )
-      )
+      AND xlaunch_posts.reservation_expires_at < now()
     RETURNING *
   `;
   return (rows[0] as RegistryRecord | undefined) ?? null;
