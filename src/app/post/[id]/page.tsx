@@ -26,8 +26,8 @@ export async function generateMetadata({
   const description =
     `${record.token_name} was launched from one canonical X post through ` +
     `${record.venue === "pumpfun" ? "Pump.fun" : record.venue === "stonkfun" ? "StonkFun" : "Pons"} on XLaunch.`;
-  const url = `https://xlaunch.it/post/${id}`;
-  const image = `https://xlaunch.it/api/post-card/${id}`;
+  const url = `https://launchonx.net/post/${id}`;
+  const image = `https://launchonx.net/api/post-card/${id}`;
 
   return {
     title,
@@ -198,7 +198,7 @@ export default async function PostTokenPage({
             <div><dt>POST ID</dt><dd>{record.post_id}</dd></div>
             <div><dt>TOKEN</dt><dd>{record.token_address || "Pending confirmation"}</dd></div>
             <div><dt>LAUNCH TX</dt><dd>{record.tx_hash || "Pending confirmation"}</dd></div>
-            <div><dt>WEBSITE</dt><dd>{metadata.socials?.website || "https://xlaunch.it"}</dd></div>
+            <div><dt>WEBSITE</dt><dd>{metadata.socials?.website || "https://launchonx.net"}</dd></div>
           </dl>
         </div>
 
