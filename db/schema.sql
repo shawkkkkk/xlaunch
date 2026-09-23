@@ -44,3 +44,40 @@ CREATE TABLE IF NOT EXISTS xlaunch_fee_events (
 
 CREATE INDEX IF NOT EXISTS xlaunch_fee_events_post_idx
   ON xlaunch_fee_events(post_id, created_at DESC);
+
+
+CREATE TABLE IF NOT EXISTS xlaunch_social_accounts (
+  x_user_id TEXT PRIMARY KEY,
+  x_handle TEXT NOT NULL,
+  solana_wallet TEXT,
+  evm_wallet TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (solana_wallet IS NOT NULL OR evm_wallet IS NOT NULL)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS xlaunch_social_accounts_handle_idx
+  ON xlaunch_social_accounts (lower(x_handle));
+
+CREATE TABLE IF NOT EXISTS xlaunch_social_commands (
+  command_post_id TEXT PRIMARY KEY CHECK (command_post_id ~ '^[0-9]+$'),
+  source_post_id TEXT NOT NULL CHECK (source_post_id ~ '^[0-9]+$'),
+  x_user_id TEXT NOT NULL,
+  author_handle TEXT NOT NULL,
+  venue TEXT NOT NULL CHECK (venue IN ('stonkfun', 'pons', 'pumpfun')),
+  intent JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'awaiting_wallet'
+    CHECK (status IN ('awaiting_wallet', 'ready', 'reserved', 'launched', 'failed', 'cancelled')),
+  confirmation_token_hash TEXT NOT NULL,
+  token_address TEXT,
+  tx_hash TEXT,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS xlaunch_social_commands_source_idx
+  ON xlaunch_social_commands(source_post_id);
+
+CREATE INDEX IF NOT EXISTS xlaunch_social_commands_author_idx
+  ON xlaunch_social_commands(x_user_id, created_at DESC);
