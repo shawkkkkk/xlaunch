@@ -21,7 +21,7 @@ const icon =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='black'/%3E%3Cpath d='M5 5L19 19M19 5L5 19' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://xlaunch.it"),
+  metadataBase: new URL("https://launchonx.net"),
   title: "XLaunch — One post. One token. Forever.",
   description:
     "Turn an X post into one canonical token through Pump.fun, StonkFun, or Pons.",
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "XLaunch",
     description: "One post. One token. One chain. Forever.",
-    url: "https://xlaunch.it",
+    url: "https://launchonx.net",
     siteName: "XLaunch",
     type: "website",
   },
