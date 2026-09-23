@@ -1,6 +1,7 @@
 "use client";
 
 import BN from "bn.js";
+import { getWallets } from "@wallet-standard/app";
 import {
   ComputeBudgetProgram,
   Connection,
@@ -25,7 +26,7 @@ type InjectedSolanaProvider = {
   ) => Promise<{ signature: Uint8Array }>;
 };
 
-export type SolanaWalletChoice = "phantom" | "backpack" | "solflare" | "browser";
+export type SolanaWalletChoice = string;
 
 declare global {
   interface Window {
@@ -33,7 +34,216 @@ declare global {
     phantom?: { solana?: InjectedSolanaProvider };
     backpack?: { solana?: InjectedSolanaProvider };
     solflare?: InjectedSolanaProvider;
+    okxwallet?: { solana?: InjectedSolanaProvider };
+    trustwallet?: { solana?: InjectedSolanaProvider };
+    braveSolana?: InjectedSolanaProvider;
+    glowSolana?: InjectedSolanaProvider;
+    nightly?: { solana?: InjectedSolanaProvider };
+    exodus?: { solana?: InjectedSolanaProvider };
   }
+}
+
+type WalletOption = {
+  id: SolanaWalletChoice;
+  label: string;
+  available: boolean;
+};
+
+const standardAccounts = new Map<string, any>();
+
+const SOLANA_CATALOGUE = [
+  { id: "phantom", label: "Phantom" },
+  { id: "solflare", label: "Solflare" },
+  { id: "backpack", label: "Backpack" },
+  { id: "okx", label: "OKX Wallet" },
+  { id: "coinbase", label: "Coinbase Wallet" },
+  { id: "trust", label: "Trust Wallet" },
+  { id: "brave", label: "Brave Wallet" },
+  { id: "nightly", label: "Nightly" },
+  { id: "glow", label: "Glow" },
+  { id: "exodus", label: "Exodus" },
+  { id: "jupiter", label: "Jupiter Wallet" },
+] as const;
+
+function normalizeWalletName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function legacyProvider(choice: SolanaWalletChoice): InjectedSolanaProvider | undefined {
+  if (typeof window === "undefined") return undefined;
+  switch (choice) {
+    case "phantom":
+      return window.phantom?.solana;
+    case "backpack":
+      return window.backpack?.solana;
+    case "solflare":
+      return window.solflare;
+    case "okx":
+      return window.okxwallet?.solana;
+    case "trust":
+      return window.trustwallet?.solana;
+    case "brave":
+      return window.braveSolana;
+    case "nightly":
+      return window.nightly?.solana;
+    case "glow":
+      return window.glowSolana;
+    case "exodus":
+      return window.exodus?.solana;
+    case "browser":
+      return window.solana;
+    default:
+      return undefined;
+  }
+}
+
+function standardWallet(choice: SolanaWalletChoice) {
+  if (!choice.startsWith("standard:")) return null;
+  const name = decodeURIComponent(choice.slice("standard:".length));
+  return getWallets().get().find((wallet) => wallet.name === name) || null;
+}
+
+async function standardAccount(choice: SolanaWalletChoice, wallet: any) {
+  const cached = standardAccounts.get(choice);
+  if (cached) return cached;
+  const connectFeature = wallet.features?.["standard:connect"];
+  if (!connectFeature?.connect) {
+    throw new Error(`${wallet.name} does not expose Wallet Standard connect support.`);
+  }
+  const result = await connectFeature.connect();
+  const accounts = result?.accounts || wallet.accounts || [];
+  const account =
+    accounts.find((item: any) => item.chains?.includes?.("solana:mainnet")) ||
+    accounts[0];
+  if (!account) throw new Error(`${wallet.name} did not return a Solana account.`);
+  standardAccounts.set(choice, account);
+  return account;
+}
+
+function standardProvider(choice: SolanaWalletChoice, wallet: any): InjectedSolanaProvider {
+  return {
+    async connect() {
+      const account = await standardAccount(choice, wallet);
+      return { publicKey: { toString: () => String(account.address) } };
+    },
+    async signTransaction(transaction: Transaction) {
+      const account = await standardAccount(choice, wallet);
+      const feature = wallet.features?.["solana:signTransaction"];
+      if (!feature?.signTransaction) {
+        throw new Error(`${wallet.name} does not support Solana transaction signing.`);
+      }
+      const serialized = transaction.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+      const outputs = await feature.signTransaction({
+        transaction: new Uint8Array(serialized),
+        account,
+        chain: "solana:mainnet",
+      });
+      const signed = outputs?.[0]?.signedTransaction;
+      if (!signed) throw new Error(`${wallet.name} returned no signed transaction.`);
+      return Transaction.from(signed);
+    },
+    async signMessage(message: Uint8Array) {
+      const account = await standardAccount(choice, wallet);
+      const feature = wallet.features?.["solana:signMessage"];
+      if (!feature?.signMessage) {
+        throw new Error(`${wallet.name} does not support message signing required by XLaunch.`);
+      }
+      const outputs = await feature.signMessage({ account, message });
+      const signature = outputs?.[0]?.signature;
+      if (!signature) throw new Error(`${wallet.name} returned no message signature.`);
+      return { signature: new Uint8Array(signature) };
+    },
+  };
+}
+
+export function availableSolanaWallets(): WalletOption[] {
+  if (typeof window === "undefined") return [];
+
+  const options: WalletOption[] = [];
+  const seen = new Set<string>();
+
+  for (const wallet of getWallets().get()) {
+    const features = wallet.features as Record<string, unknown>;
+    const supportsSolana =
+      wallet.chains?.some((chain) => String(chain).startsWith("solana:")) &&
+      Boolean(features["standard:connect"]) &&
+      Boolean(features["solana:signTransaction"]) &&
+      Boolean(features["solana:signMessage"]);
+    if (!supportsSolana) continue;
+
+    const key = normalizeWalletName(wallet.name);
+    seen.add(key);
+    options.push({
+      id: `standard:${encodeURIComponent(wallet.name)}`,
+      label: wallet.name,
+      available: true,
+    });
+  }
+
+  for (const item of SOLANA_CATALOGUE) {
+    const key = normalizeWalletName(item.label);
+    if (seen.has(key)) continue;
+    const available = Boolean(legacyProvider(item.id));
+    options.push({
+      id: item.id,
+      label: available ? item.label : `${item.label} · not detected`,
+      available,
+    });
+  }
+
+  const knownLegacy = SOLANA_CATALOGUE
+    .map((item) => legacyProvider(item.id))
+    .filter(Boolean);
+  if (window.solana && !knownLegacy.includes(window.solana)) {
+    options.push({ id: "browser", label: "Other browser Solana wallet", available: true });
+  }
+
+  return options;
+}
+
+export function solanaProvider(choice?: SolanaWalletChoice): InjectedSolanaProvider {
+  if (typeof window === "undefined") throw new Error("Solana wallet is unavailable.");
+  if (!choice) throw new Error("Choose a Solana wallet before connecting.");
+
+  const standard = standardWallet(choice);
+  if (standard) return standardProvider(choice, standard as any);
+
+  const wallet = legacyProvider(choice);
+  if (!wallet) {
+    throw new Error(
+      "That wallet is not detected in this browser. Install/enable it, refresh XLaunch, then try again.",
+    );
+  }
+  return wallet;
+}
+
+export async function connectSolanaWallet(choice?: SolanaWalletChoice) {
+  const wallet = solanaProvider(choice);
+  const result = await wallet.connect();
+  return new PublicKey(result.publicKey.toString());
+}
+
+export async function signSolanaMessage(message: string, choice?: SolanaWalletChoice) {
+  const wallet = solanaProvider(choice);
+  const publicKey = await connectSolanaWallet(choice);
+  if (!wallet.signMessage) {
+    throw new Error(
+      "This Solana wallet does not support message signing required to reserve an X post.",
+    );
+  }
+  const signed = await wallet.signMessage(
+    new TextEncoder().encode(message),
+    "utf8",
+  );
+  return {
+    wallet: publicKey.toBase58(),
+    signature: btoa(
+      Array.from(signed.signature, (byte) => String.fromCharCode(byte)).join(""),
+    ),
+  };
 }
 
 function rpcUrl() {
