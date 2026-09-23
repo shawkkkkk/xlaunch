@@ -2,13 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildLaunchMetadata } from "@/lib/metadata";
 import { reservePost } from "@/lib/db";
 import { parseXPostUrl } from "@/lib/xpost";
+import { resolveFeeDestination, type FeeRoute } from "@/lib/fees";
 
 export async function POST(request: NextRequest) {
   try {
     if (!process.env.DATABASE_URL) throw new Error("Canonical registry is not configured yet.");
 
     const body = await request.json();
-    const venue = body.venue === "pons" ? "pons" : body.venue === "stonkfun" ? "stonkfun" : null;
+    const venue =
+      body.venue === "pons"
+        ? "pons"
+        : body.venue === "stonkfun"
+          ? "stonkfun"
+          : body.venue === "pumpfun"
+            ? "pumpfun"
+            : null;
     if (!venue) throw new Error("Invalid venue.");
 
     const post = parseXPostUrl(String(body.postUrl ?? ""));
@@ -16,6 +24,20 @@ export async function POST(request: NextRequest) {
 
     const wallet = String(body.wallet ?? "").trim();
     if (!wallet) throw new Error("Wallet is required.");
+
+    const requestedFeeRoute = String(body.feeRoute || "developer") as FeeRoute;
+    const forcedHolderRewards =
+      (venue === "stonkfun" && body.stonkMode === "reward") ||
+      (venue === "pumpfun" && Boolean(body.pumpHolderReward));
+
+    const feeDestination = resolveFeeDestination({
+      venue,
+      stonkMode: body.stonkMode === "reward" ? "reward" : "standard",
+      route: forcedHolderRewards ? "holder_rewards" : requestedFeeRoute,
+      developerWallet: wallet,
+      customWallet: String(body.customFeeWallet ?? ""),
+      authorHandle: String(body.authorHandle ?? ""),
+    });
 
     const metadata = buildLaunchMetadata({
       postId: post.id,
@@ -39,6 +61,15 @@ export async function POST(request: NextRequest) {
       tokenName: metadata.name,
       tokenSymbol: metadata.symbol,
       metadata,
+      feeRoute: feeDestination.route,
+      feeRecipientHandle: feeDestination.recipientHandle,
+      feeRecipientWallet: feeDestination.recipientWallet,
+      feeRoutingStatus:
+        feeDestination.route === "holder_rewards"
+          ? "onchain_verified"
+          : venue === "pumpfun" && feeDestination.route !== "developer"
+            ? "requested"
+            : "requested",
     });
 
     if (!record) {
@@ -48,7 +79,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ record, metadata });
+    return NextResponse.json({ record, metadata, feeDestination });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Reservation failed." },
