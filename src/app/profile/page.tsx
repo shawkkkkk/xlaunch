@@ -54,7 +54,7 @@ export default async function ProfilePage() {
       <nav>
         <a className="logo" href="/">XLAUNCH</a>
         <div className="navRule">PROFILE / @{profile.x_handle}</div>
-        <div className="navActions"><a className="profileLink" href="/explore">EXPLORE</a><a className="wallet tokenBack" href="/">LAUNCH</a></div>
+        <div className="navActions"><a className="profileLink" href="/explore">EXPLORE</a><a className="profileLink" href="/docs">DOCS</a><a className="wallet tokenBack" href="/">LAUNCH</a></div>
       </nav>
       <ProfileClient
         profile={profile}
