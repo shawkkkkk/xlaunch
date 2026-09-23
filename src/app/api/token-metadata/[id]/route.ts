@@ -18,14 +18,21 @@ export async function GET(
   }
 
   const metadata = record.metadata as any;
+  const configuredWebsite = String(metadata?.socials?.website || "").trim();
+  const website =
+    !configuredWebsite ||
+    configuredWebsite.replace(/\/$/, "") === "https://launchonx.net"
+      ? `https://launchonx.net/post/${id}`
+      : configuredWebsite;
+
   return NextResponse.json(
     {
       name: record.token_name,
       symbol: record.token_symbol,
       description: metadata?.description || "Tokenized from X post " + id + " through XLaunch.",
       image: metadata?.image || "",
-      external_url: metadata?.socials?.website || "https://launchonx.net",
-      website: metadata?.socials?.website || "https://launchonx.net",
+      external_url: website,
+      website,
       twitter: metadata?.socials?.twitter || record.post_url,
       telegram: metadata?.socials?.telegram || "",
       discord: metadata?.socials?.discord || "",
