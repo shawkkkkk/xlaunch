@@ -699,7 +699,7 @@ export default function XLaunchApp() {
           </a>
           <a
             className="xlNavPill xlAppear xlSoft"
-            href="https://x.com/xlaunchit"
+            href="https://x.com/launchonx"
             target="_blank"
             rel="noreferrer"
             onClick={() => setMenuOpen(false)}
