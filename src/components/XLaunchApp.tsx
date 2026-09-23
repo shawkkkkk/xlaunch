@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
   availableEvmWallets,
   connectRobinhoodWallet,
@@ -35,6 +35,10 @@ type Resolved = {
     text: string;
     authorName: string;
     handle: string;
+    media: Array<{
+      type: "photo" | "video" | "animated_gif";
+      url: string;
+    }>;
   };
   registry: Registry | null;
   registryConfigured: boolean;
@@ -118,6 +122,73 @@ function XBrandMark({ className = "" }: { className?: string }) {
   );
 }
 
+const TOKEN_IMAGE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
+
+function squareTokenImage(file: File, size = 512): Promise<File> {
+  return new Promise((resolve, reject) => {
+    if (!TOKEN_IMAGE_TYPES.has(file.type)) {
+      reject(new Error("Use a PNG, JPG, or WEBP image."));
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      reject(new Error("Choose an image smaller than 20 MB."));
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const source = new Image();
+
+    source.onload = () => {
+      try {
+        const side = Math.min(source.naturalWidth, source.naturalHeight);
+        if (!side) throw new Error("Could not read this image.");
+
+        const sx = Math.floor((source.naturalWidth - side) / 2);
+        const sy = Math.floor((source.naturalHeight - side) / 2);
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Could not prepare this image.");
+
+        context.drawImage(source, sx, sy, side, side, 0, 0, size, size);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(objectUrl);
+            if (!blob) {
+              reject(new Error("Could not process this image."));
+              return;
+            }
+            resolve(
+              new File(
+                [blob],
+                `${file.name.replace(/\.[^.]+$/, "") || "token"}-square.png`,
+                { type: "image/png" },
+              ),
+            );
+          },
+          "image/png",
+          0.95,
+        );
+      } catch (error) {
+        URL.revokeObjectURL(objectUrl);
+        reject(error);
+      }
+    };
+
+    source.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read this image."));
+    };
+
+    source.src = objectUrl;
+  });
+}
+
 function suggestedTicker(handle: string, text: string) {
   const firstWord = text
     .replace(/https?:\/\/\S+/g, "")
@@ -138,6 +209,12 @@ export default function XLaunchApp() {
   const [symbol, setSymbol] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState("");
+  const [imageMode, setImageMode] = useState<"upload" | "post" | "url">("upload");
+  const [manualImageUrl, setManualImageUrl] = useState("");
+  const [uploadedImagePreview, setUploadedImagePreview] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+  const [draggingImage, setDraggingImage] = useState(false);
   const [website, setWebsite] = useState("");
   const [telegram, setTelegram] = useState("");
   const [discord, setDiscord] = useState("");
@@ -204,6 +281,7 @@ export default function XLaunchApp() {
     bot: false,
   });
   const socialPrefillApplied = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     setSolWalletOptions(availableSolanaWallets());
@@ -360,6 +438,18 @@ export default function XLaunchApp() {
       } catch {
         setPendingLaunch(null);
       }
+      const postMedia = Array.isArray(body.post.media) ? body.post.media : [];
+      setImageError("");
+      setManualImageUrl("");
+      setUploadedImagePreview("");
+      if (postMedia[0]?.url) {
+        setImageMode("post");
+        setImage(String(postMedia[0].url));
+      } else {
+        setImageMode("upload");
+        setImage("");
+      }
+
       const text = String(body.post.text || "");
       const firstSentence = text.replace(/https?:\/\/\S+/g, "").trim().split(/[.!?\n]/)[0].slice(0, 48);
       setName(prefill?.name || firstSentence || body.post.authorName || "X Post");
@@ -383,6 +473,65 @@ export default function XLaunchApp() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function uploadTokenImage(file: File) {
+    setUploadingImage(true);
+    setImageError("");
+    setImage("");
+
+    try {
+      const square = await squareTokenImage(file, 512);
+      const previewUrl = URL.createObjectURL(square);
+      setUploadedImagePreview((current) => {
+        if (current.startsWith("blob:")) URL.revokeObjectURL(current);
+        return previewUrl;
+      });
+
+      const formData = new FormData();
+      formData.append("file", square);
+
+      const response = await fetch("/api/upload/image", {
+        method: "POST",
+        body: formData,
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || "Image upload failed.");
+      }
+
+      setImageMode("upload");
+      setImage(String(body.url || ""));
+      setStatus("Token image uploaded and cropped to 1:1.");
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "Image upload failed.");
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  function chooseImageFiles(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    void uploadTokenImage(file);
+  }
+
+  function onImageInput(event: ChangeEvent<HTMLInputElement>) {
+    chooseImageFiles(event.target.files);
+    event.target.value = "";
+  }
+
+  function onImageDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDraggingImage(false);
+    chooseImageFiles(event.dataTransfer.files);
+  }
+
+  function selectPostMedia(url: string) {
+    setImageMode("post");
+    setImage(url);
+    setImageError("");
   }
 
   async function searchCharities() {
@@ -727,6 +876,10 @@ export default function XLaunchApp() {
     }
     if (!name.trim() || !symbol.trim()) {
       setStatus("Token name and ticker are required.");
+      return;
+    }
+    if (uploadingImage) {
+      setStatus("Wait for the token image upload to finish.");
       return;
     }
     if (feeRoute === "charity" && venue === "pumpfun" && !selectedCharity) {
@@ -1138,14 +1291,152 @@ export default function XLaunchApp() {
               <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} />
             </label>
 
-            <label>
-              <span>IMAGE / LOGO URL</span>
-              <input
-                value={image}
-                onChange={(event) => setImage(event.target.value)}
-                placeholder="Use post media or your own token image"
-              />
-            </label>
+            <div className="tokenImageField">
+              <span className="tokenImageLabel">IMAGE / LOGO</span>
+
+              <div className="tokenImageTabs" role="tablist" aria-label="Token image source">
+                <button
+                  type="button"
+                  className={imageMode === "upload" ? "active" : ""}
+                  onClick={() => {
+                    setImageMode("upload");
+                    setImageError("");
+                    setImage(image && uploadedImagePreview ? image : "");
+                  }}
+                >
+                  UPLOAD
+                </button>
+                <button
+                  type="button"
+                  className={imageMode === "post" ? "active" : ""}
+                  disabled={!resolved.post.media?.length}
+                  onClick={() => {
+                    const first = resolved.post.media?.[0]?.url || "";
+                    setImageMode("post");
+                    setImage(first);
+                    setImageError("");
+                  }}
+                >
+                  POST MEDIA
+                </button>
+                <button
+                  type="button"
+                  className={imageMode === "url" ? "active" : ""}
+                  onClick={() => {
+                    setImageMode("url");
+                    setImage(manualImageUrl.trim());
+                    setImageError("");
+                  }}
+                >
+                  IMAGE URL
+                </button>
+              </div>
+
+              {imageMode === "upload" && (
+                <div className="tokenUploadPanel">
+                  <input
+                    ref={fileInputRef}
+                    className="tokenImageInput"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/*"
+                    onChange={onImageInput}
+                  />
+                  <div
+                    className={draggingImage ? "tokenDropzone is-dragging" : "tokenDropzone"}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    onDragEnter={(event) => {
+                      event.preventDefault();
+                      setDraggingImage(true);
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragLeave={() => setDraggingImage(false)}
+                    onDrop={onImageDrop}
+                  >
+                    {uploadedImagePreview ? (
+                      <img src={uploadedImagePreview} alt="Token image preview" />
+                    ) : (
+                      <div className="tokenDropIcon">+</div>
+                    )}
+                    <div>
+                      <b>{uploadingImage ? "UPLOADING…" : "DROP A TOKEN IMAGE HERE"}</b>
+                      <span>or click to choose from your device</span>
+                      <small>PNG · JPG · WEBP · automatically center-cropped to 1:1</small>
+                    </div>
+                  </div>
+                  <div className="tokenUploadFooter">
+                    <small>
+                      {image
+                        ? "Uploaded · 512 × 512 · ready for launch"
+                        : "Optional. If blank, XLaunch uses the canonical post card."}
+                    </small>
+                    {uploadedImagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (uploadedImagePreview.startsWith("blob:")) {
+                            URL.revokeObjectURL(uploadedImagePreview);
+                          }
+                          setUploadedImagePreview("");
+                          setImage("");
+                          setImageError("");
+                        }}
+                      >
+                        REMOVE
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {imageMode === "post" && (
+                <div className="postMediaPicker">
+                  {resolved.post.media?.length ? (
+                    resolved.post.media.map((media, index) => (
+                      <button
+                        type="button"
+                        key={media.url}
+                        className={image === media.url ? "selected" : ""}
+                        onClick={() => selectPostMedia(media.url)}
+                      >
+                        <img src={media.url} alt={`Post media ${index + 1}`} />
+                        <span>{image === media.url ? "SELECTED" : `MEDIA ${index + 1}`}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="tokenImageEmpty">No image media was detected on this X post.</div>
+                  )}
+                </div>
+              )}
+
+              {imageMode === "url" && (
+                <div className="tokenImageUrl">
+                  <input
+                    value={manualImageUrl}
+                    onChange={(event) => {
+                      setManualImageUrl(event.target.value);
+                      setImage(event.target.value.trim());
+                    }}
+                    placeholder="https://…/token-image.png"
+                    inputMode="url"
+                  />
+                  {manualImageUrl.trim() && (
+                    <div className="tokenUrlPreview">
+                      <img src={manualImageUrl.trim()} alt="Token image URL preview" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {imageError && <div className="tokenImageError">{imageError}</div>}
+            </div>
 
             <div className="lockedSocial">
               <div>
