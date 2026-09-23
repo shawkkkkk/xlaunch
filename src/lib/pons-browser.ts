@@ -89,6 +89,18 @@ export async function connectRobinhoodWallet() {
   return accounts[0] as Address;
 }
 
+export async function signRobinhoodMessage(message: string) {
+  const account = await connectRobinhoodWallet();
+  const p = await provider();
+  const wallet = createWalletClient({
+    account,
+    chain: robinhoodChain,
+    transport: custom(p as never),
+  });
+  const signature = await wallet.signMessage({ account, message });
+  return { wallet: account, signature };
+}
+
 function normalizePair(value: string): Address {
   const pair = value.trim();
   if (!pair || pair.toUpperCase() === "ETH" || pair === zeroAddress) return zeroAddress;
