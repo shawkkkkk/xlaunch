@@ -8,7 +8,10 @@ import {
 } from "@/lib/db";
 import { parseXPostUrl } from "@/lib/xpost";
 import { resolveFeeDestination, type FeeRoute } from "@/lib/fees";
-import { verifyReservationProof } from "@/lib/auth";
+import {
+  createReservationReleaseToken,
+  verifyReservationProof,
+} from "@/lib/auth";
 import { resolveVerifiedXSource } from "@/lib/x-source";
 import { createDonateCharityConfig } from "@/lib/donate";
 import { readXSession } from "@/lib/x-oauth";
@@ -208,7 +211,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ record, metadata, feeDestination });
+    const releaseToken = createReservationReleaseToken({
+      postId: post.id,
+      venue,
+      wallet,
+    });
+
+    return NextResponse.json({ record, metadata, feeDestination, releaseToken });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Reservation failed." },
