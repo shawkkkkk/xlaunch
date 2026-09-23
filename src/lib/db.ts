@@ -42,7 +42,7 @@ export async function reservePost(args: {
   metadata: Record<string, unknown>;
   ttlMinutes?: number;
 }) {
-  const ttl = Math.max(1, Math.min(args.ttlMinutes ?? 5, 15));
+  const ttl = Math.max(1, Math.min(args.ttlMinutes ?? 15, 30));
   const rows = await sql()`
     INSERT INTO xlaunch_posts (
       post_id, source_key, post_url, status, venue, chain, reserver_wallet,
@@ -72,7 +72,14 @@ export async function reservePost(args: {
       metadata = EXCLUDED.metadata
     WHERE
       xlaunch_posts.status = 'reserved'
-      AND xlaunch_posts.reservation_expires_at < now()
+      AND (
+        xlaunch_posts.reservation_expires_at < now()
+        OR xlaunch_posts.reserver_wallet = EXCLUDED.reserver_wallet
+        OR (
+          xlaunch_posts.chain = 'robinhood'
+          AND lower(xlaunch_posts.reserver_wallet) = lower(EXCLUDED.reserver_wallet)
+        )
+      )
     RETURNING *
   `;
   return (rows[0] as RegistryRecord | undefined) ?? null;
@@ -93,7 +100,10 @@ export async function confirmReservedPost(args: {
         confirmed_at = now()
     WHERE post_id = ${args.postId}
       AND status = 'reserved'
-      AND lower(reserver_wallet) = lower(${args.wallet})
+      AND (
+        (chain = 'solana' AND reserver_wallet = ${args.wallet})
+        OR (chain = 'robinhood' AND lower(reserver_wallet) = lower(${args.wallet}))
+      )
     RETURNING *
   `;
   return (rows[0] as RegistryRecord | undefined) ?? null;
