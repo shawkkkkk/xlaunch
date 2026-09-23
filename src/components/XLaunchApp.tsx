@@ -393,6 +393,11 @@ export default function XLaunchApp() {
               launchConfigId: ponsConfig,
               creatorTaxBps: creatorTax,
               buybackEnabled: buyback,
+              openingBuy: devBuy,
+              openingBuyRecipient: buyRecipient,
+              openingBuySlippageBps: 300,
+              exemptions,
+              salt,
             };
 
     const response = await fetch("/api/registry/reserve", {
@@ -610,13 +615,17 @@ export default function XLaunchApp() {
       <nav>
         <a className="logo" href="/">XLAUNCH</a>
         <div className="navRule">ONE POST · ONE TOKEN · ONE CHAIN · FOREVER</div>
-        <button className="wallet" type="button" onClick={connectCurrentWallet}>
-          {activeWallet
-            ? `${activeWallet.slice(0, 5)}…${activeWallet.slice(-4)}`
-            : venue === "pons"
-              ? "CONNECT EVM"
-              : "CONNECT SOL"}
-        </button>
+        <div className="navActions">
+          <a className="profileLink" href="/explore">EXPLORE</a>
+          <a className="profileLink" href="/profile">PROFILE</a>
+          <button className="wallet" type="button" onClick={connectCurrentWallet}>
+            {activeWallet
+              ? activeWallet.slice(0, 5) + "…" + activeWallet.slice(-4)
+              : venue === "pons"
+                ? "CONNECT EVM"
+                : "CONNECT SOL"}
+          </button>
+        </div>
       </nav>
 
       <section className="hero">
