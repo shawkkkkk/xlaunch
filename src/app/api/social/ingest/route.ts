@@ -66,7 +66,6 @@ export async function POST(request: NextRequest) {
     });
 
     const url = new URL(`${siteOrigin()}/social/confirm/${commandPostId}`);
-    url.searchParams.set("token", token);
 
     return NextResponse.json({
       state: hasWallet ? "ready" : "wallet_link_required",
