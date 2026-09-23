@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRegistryRecord, getSocialAccount, getSocialCommand } from "@/lib/db";
-import { verifySocialConfirmationToken } from "@/lib/social-token";
+import { readXSession } from "@/lib/x-oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,14 +8,13 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const commandPostId = request.nextUrl.searchParams.get("command") || "";
-    const token = request.nextUrl.searchParams.get("token") || "";
-    if (!/^\d+$/.test(commandPostId) || !token) throw new Error("Invalid confirmation link.");
+    if (!/^\d+$/.test(commandPostId)) throw new Error("Invalid confirmation link.");
 
     const command = await getSocialCommand(commandPostId) as any;
     if (!command) return NextResponse.json({ error: "Unknown social launch command." }, { status: 404 });
-    if (!verifySocialConfirmationToken(token, String(command.confirmation_token_hash))) {
-      return NextResponse.json({ error: "Confirmation link is invalid." }, { status: 403 });
-    }
+    const session = readXSession(request.cookies.get("xlaunch_x_session")?.value);
+    const identityVerified =
+      Boolean(session) && String(session!.xUserId) === String(command.x_user_id);
 
     const registry = await getRegistryRecord(String(command.source_post_id));
     if (registry?.status === "live") {
@@ -34,6 +33,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       state: wallet ? "ready" : "wallet_link_required",
+      identityVerified,
       command: {
         commandPostId: command.command_post_id,
         sourcePostId: command.source_post_id,
