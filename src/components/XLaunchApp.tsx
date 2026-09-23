@@ -179,6 +179,13 @@ export default function XLaunchApp() {
   const [advanced, setAdvanced] = useState(false);
   const [status, setStatus] = useState("");
   const [launching, setLaunching] = useState(false);
+  const [pendingLaunch, setPendingLaunch] = useState<{
+    wallet: string;
+    txHash: string;
+    tokenAddress: string;
+    postId: string;
+    venue: "stonkfun" | "pons" | "pumpfun";
+  } | null>(null);
   const [solWallet, setSolWallet] = useState("");
   const [solWalletProvider, setSolWalletProvider] = useState<SolanaWalletChoice | "">("");
   const [solWalletOptions, setSolWalletOptions] = useState<Array<{ id: SolanaWalletChoice; label: string }>>([]);
@@ -331,6 +338,19 @@ export default function XLaunchApp() {
       if (!response.ok) throw new Error(body.error || "Could not resolve post.");
 
       setResolved(body);
+      try {
+        const saved = window.localStorage.getItem(`xlaunch:pending:${body.post.id}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed?.txHash && parsed?.tokenAddress && parsed?.wallet) {
+            setPendingLaunch(parsed);
+          }
+        } else {
+          setPendingLaunch(null);
+        }
+      } catch {
+        setPendingLaunch(null);
+      }
       const text = String(body.post.text || "");
       const firstSentence = text.replace(/https?:\/\/\S+/g, "").trim().split(/[.!?\n]/)[0].slice(0, 48);
       setName(prefill?.name || firstSentence || body.post.authorName || "X Post");
@@ -579,6 +599,27 @@ export default function XLaunchApp() {
     return data;
   }
 
+  async function retryPendingConfirmation() {
+    if (!pendingLaunch) return;
+    setLaunching(true);
+    setStatus("Retrying canonical onchain verification…");
+    try {
+      await confirmLaunch(pendingLaunch);
+      window.localStorage.removeItem(`xlaunch:pending:${pendingLaunch.postId}`);
+      setPendingLaunch(null);
+      setStatus("Launch verified. This X post is now permanently assigned in XLaunch.");
+      window.location.href = `/post/${pendingLaunch.postId}`;
+    } catch (error) {
+      setStatus(
+        `The token exists onchain, but XLaunch verification is still pending: ${
+          error instanceof Error ? error.message : "Confirmation failed."
+        }`,
+      );
+    } finally {
+      setLaunching(false);
+    }
+  }
+
   async function launch() {
     if (!resolved) return;
     if (!resolved.registryConfigured) {
@@ -681,8 +722,21 @@ export default function XLaunchApp() {
         });
       }
 
+      const recoveryRecord = {
+        ...result,
+        postId: resolved.post.id,
+        venue,
+      };
+      setPendingLaunch(recoveryRecord);
+      window.localStorage.setItem(
+        `xlaunch:pending:${resolved.post.id}`,
+        JSON.stringify(recoveryRecord),
+      );
+
       setStatus("Onchain transaction confirmed. Verifying the canonical assignment…");
       await confirmLaunch(result);
+      window.localStorage.removeItem(`xlaunch:pending:${resolved.post.id}`);
+      setPendingLaunch(null);
 
       if (socialCommandId) {
         const socialResponse = await fetch("/api/social/complete", {
@@ -1424,6 +1478,49 @@ export default function XLaunchApp() {
                   : "REVIEW & LAUNCH →"}
             </button>
 
+            {pendingLaunch && (
+              <div className="launchRecovery">
+                <b>ONCHAIN LAUNCH FOUND</b>
+                <div>
+                  <span>CONTRACT ADDRESS</span>
+                  <code>{pendingLaunch.tokenAddress}</code>
+                </div>
+                <div>
+                  <span>TRANSACTION</span>
+                  <code>{pendingLaunch.txHash}</code>
+                </div>
+                <div className="launchRecoveryActions">
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard.writeText(pendingLaunch.tokenAddress)}
+                  >
+                    COPY CA
+                  </button>
+                  <a
+                    href={
+                      pendingLaunch.venue === "pons"
+                        ? `https://robinhoodchain.blockscout.com/tx/${pendingLaunch.txHash}`
+                        : `https://solscan.io/tx/${pendingLaunch.txHash}`
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    VIEW TX ↗
+                  </a>
+                  <button
+                    type="button"
+                    disabled={launching}
+                    onClick={() => void retryPendingConfirmation()}
+                  >
+                    {launching ? "VERIFYING…" : "RETRY XLAUNCH VERIFICATION"}
+                  </button>
+                </div>
+                <small>
+                  The token transaction succeeded. This panel remains until XLaunch
+                  verifies and records the canonical assignment.
+                </small>
+              </div>
+            )}
             {status && <div className="status">{status}</div>}
           </div>
         </section>
