@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS xlaunch_posts (
   venue TEXT NOT NULL CHECK (venue IN ('stonkfun', 'pons', 'pumpfun')),
   chain TEXT NOT NULL CHECK (chain IN ('solana', 'robinhood')),
   reserver_wallet TEXT NOT NULL,
+  creator_x_user_id TEXT,
   reservation_expires_at TIMESTAMPTZ,
   token_name TEXT NOT NULL,
   token_symbol TEXT NOT NULL,
@@ -90,3 +91,36 @@ CREATE TABLE IF NOT EXISTS xlaunch_bot_state (
   value TEXT NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+
+CREATE TABLE IF NOT EXISTS xlaunch_profiles (
+  x_user_id TEXT PRIMARY KEY,
+  x_handle TEXT NOT NULL,
+  display_name TEXT,
+  avatar_url TEXT,
+  evm_wallet_address TEXT,
+  evm_wallet_provider_id TEXT,
+  solana_wallet_address TEXT,
+  solana_wallet_provider_id TEXT,
+  wallet_provider TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS xlaunch_profiles_handle_idx
+  ON xlaunch_profiles (lower(x_handle));
+
+CREATE TABLE IF NOT EXISTS xlaunch_wallet_activity (
+  id BIGSERIAL PRIMARY KEY,
+  x_user_id TEXT NOT NULL REFERENCES xlaunch_profiles(x_user_id) ON DELETE CASCADE,
+  operation TEXT NOT NULL CHECK (operation IN ('send','swap','bridge','receive','key_export')),
+  chain TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('quoted','pending','confirmed','failed')),
+  tx_hash TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS xlaunch_wallet_activity_user_idx
+  ON xlaunch_wallet_activity(x_user_id, created_at DESC);
