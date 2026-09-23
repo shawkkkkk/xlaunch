@@ -1154,3 +1154,12 @@ body>main:not(.xlaunchPage)>nav .navActions{justify-self:end}
   .riskWarning>small{justify-self:start}
   .riskWarningBody>div{align-items:flex-start;flex-direction:column;gap:6px}
 }
+
+.xlFooter{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 7vw;border-top:1px solid rgba(255,255,255,.08);background:#020202}
+.xlFooterBrand{display:flex;align-items:center;gap:14px;min-width:0}
+.xlFooterBrand b{font-size:10px;letter-spacing:.12em}
+.xlFooterBrand span{color:#5f5f5f;font-size:7px;letter-spacing:.12em}
+.xlFooterLinks{display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}
+.xlFooterLinks a{color:#bdbdbd;text-decoration:none;font-size:8px;font-weight:800;letter-spacing:.1em}
+.xlFooterLinks a:hover{color:#fff}
+@media(max-width:700px){.xlFooter{align-items:flex-start;flex-direction:column;padding:24px 18px}.xlFooterBrand{align-items:flex-start;flex-direction:column;gap:6px}.xlFooterLinks{justify-content:flex-start}}
