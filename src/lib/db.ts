@@ -189,3 +189,114 @@ export async function recordFeeEvent(args: {
   `;
   return rows[0];
 }
+
+
+export type SocialCommandStatus =
+  | "awaiting_wallet"
+  | "ready"
+  | "reserved"
+  | "launched"
+  | "failed"
+  | "cancelled";
+
+export async function upsertSocialCommand(args: {
+  commandPostId: string;
+  sourcePostId: string;
+  xUserId: string;
+  authorHandle: string;
+  venue: RegistryVenue;
+  intent: Record<string, unknown>;
+  confirmationTokenHash: string;
+  status: SocialCommandStatus;
+}) {
+  const rows = await sql()`
+    INSERT INTO xlaunch_social_commands (
+      command_post_id,
+      source_post_id,
+      x_user_id,
+      author_handle,
+      venue,
+      intent,
+      confirmation_token_hash,
+      status
+    ) VALUES (
+      ${args.commandPostId},
+      ${args.sourcePostId},
+      ${args.xUserId},
+      ${args.authorHandle},
+      ${args.venue},
+      ${JSON.stringify(args.intent)}::jsonb,
+      ${args.confirmationTokenHash},
+      ${args.status}
+    )
+    ON CONFLICT (command_post_id) DO UPDATE SET
+      updated_at = now()
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function getSocialCommand(commandPostId: string) {
+  const rows = await sql()`
+    SELECT *
+    FROM xlaunch_social_commands
+    WHERE command_post_id = ${commandPostId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+export async function getSocialAccount(xUserId: string) {
+  const rows = await sql()`
+    SELECT *
+    FROM xlaunch_social_accounts
+    WHERE x_user_id = ${xUserId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+export async function upsertSocialAccount(args: {
+  xUserId: string;
+  xHandle: string;
+  solanaWallet?: string | null;
+  evmWallet?: string | null;
+}) {
+  const rows = await sql()`
+    INSERT INTO xlaunch_social_accounts (
+      x_user_id, x_handle, solana_wallet, evm_wallet
+    ) VALUES (
+      ${args.xUserId},
+      ${args.xHandle},
+      ${args.solanaWallet ?? null},
+      ${args.evmWallet ?? null}
+    )
+    ON CONFLICT (x_user_id) DO UPDATE SET
+      x_handle = EXCLUDED.x_handle,
+      solana_wallet = COALESCE(EXCLUDED.solana_wallet, xlaunch_social_accounts.solana_wallet),
+      evm_wallet = COALESCE(EXCLUDED.evm_wallet, xlaunch_social_accounts.evm_wallet),
+      updated_at = now()
+    RETURNING *
+  `;
+  return rows[0];
+}
+
+export async function updateSocialCommandStatus(args: {
+  commandPostId: string;
+  status: SocialCommandStatus;
+  tokenAddress?: string | null;
+  txHash?: string | null;
+  error?: string | null;
+}) {
+  const rows = await sql()`
+    UPDATE xlaunch_social_commands
+    SET status = ${args.status},
+        token_address = COALESCE(${args.tokenAddress ?? null}, token_address),
+        tx_hash = COALESCE(${args.txHash ?? null}, tx_hash),
+        error = ${args.error ?? null},
+        updated_at = now()
+    WHERE command_post_id = ${args.commandPostId}
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
