@@ -70,7 +70,7 @@ export async function GET() {
     },
     {
       key: "xBot",
-      label: "@xlaunchit automation",
+      label: "@launchonx automation",
       ready:
         present("X_BOT_USER_ID") &&
         present("X_BOT_ACCESS_TOKEN") &&
