@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
         text: source.text,
         authorName: source.authorName,
         handle: source.handle,
+        media: source.media,
       },
       registry,
       registryConfigured: Boolean(process.env.DATABASE_URL),
