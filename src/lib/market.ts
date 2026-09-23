@@ -4,7 +4,29 @@ type DexPair = {
   chainId?: string;
   dexId?: string;
   pairAddress?: string;
-  baseToken?: { address?: string };
+  baseToken?: { address?: string; name?: string; symbol?: string };
+  quoteToken?: { address?: string; name?: string; symbol?: string };
+  priceNative?: string;
+  priceUsd?: string | null;
+  liquidity?: { usd?: number; base?: number; quote?: number };
+  fdv?: number | null;
+  marketCap?: number | null;
+  volume?: { h24?: number; h6?: number; h1?: number; m5?: number };
+  priceChange?: { h24?: number; h6?: number; h1?: number; m5?: number };
+  txns?: {
+    h24?: { buys?: number; sells?: number };
+    h6?: { buys?: number; sells?: number };
+    h1?: { buys?: number; sells?: number };
+    m5?: { buys?: number; sells?: number };
+  };
+  pairCreatedAt?: number | null;
+  url?: string;
+  info?: {
+    imageUrl?: string;
+    websites?: Array<{ url?: string }>;
+    socials?: Array<{ platform?: string; handle?: string }>;
+  };
+};
   quoteToken?: { address?: string };
   priceUsd?: string;
   liquidity?: { usd?: number };
@@ -13,6 +35,18 @@ type DexPair = {
   volume?: { h24?: number };
   priceChange?: { h24?: number };
   txns?: { h24?: { buys?: number; sells?: number } };
+  volume?: { h24?: number };
+  priceChange?: { h24?: number };
+  liquidity?: { usd?: number };
+  fdv?: number;
+  marketCap?: number;
+  pairCreatedAt?: number | null;
+  url?: string;
+  info?: {
+    imageUrl?: string;
+    websites?: Array<{ url?: string }>;
+    socials?: Array<{ platform?: string; handle?: string }>;
+  };
 };
 
 function sameAddress(a: string | undefined, b: string) {
@@ -23,6 +57,64 @@ function sameAddress(a: string | undefined, b: string) {
 function number(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export async function fetchDexScreenerMarket(
+  tokenAddress: string,
+  chainId: string,
+) {
+  const endpoint =
+    "https://api.dexscreener.com/token-pairs/v1/" +
+    encodeURIComponent(chainId) +
+    "/" +
+    encodeURIComponent(tokenAddress);
+
+  const response = await fetch(endpoint, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`DexScreener request failed (${response.status}).`);
+  }
+
+  const body = await response.json();
+  const pairs = (Array.isArray(body) ? body : []) as DexPair[];
+  const matches = pairs.filter(
+    (pair) =>
+      sameAddress(pair.baseToken?.address, tokenAddress) ||
+      sameAddress(pair.quoteToken?.address, tokenAddress),
+  );
+  if (!matches.length) return null;
+
+  const primary = [...matches].sort((a, b) => {
+    const liquidityDelta = number(b.liquidity?.usd) - number(a.liquidity?.usd);
+    if (liquidityDelta) return liquidityDelta;
+    return number(b.volume?.h24) - number(a.volume?.h24);
+  })[0];
+
+  return {
+    chainId: primary.chainId || chainId,
+    dexId: primary.dexId || "unknown",
+    pairAddress: primary.pairAddress || null,
+    url:
+      primary.url ||
+      (primary.pairAddress
+        ? `https://dexscreener.com/${primary.chainId || chainId}/${primary.pairAddress}`
+        : null),
+    baseToken: primary.baseToken || null,
+    quoteToken: primary.quoteToken || null,
+    priceNative: primary.priceNative || null,
+    priceUsd: primary.priceUsd || null,
+    marketCap: primary.marketCap ?? null,
+    fdv: primary.fdv ?? null,
+    liquidityUsd: primary.liquidity?.usd ?? null,
+    volume24h: primary.volume?.h24 ?? null,
+    priceChange24h: primary.priceChange?.h24 ?? null,
+    buys24h: primary.txns?.h24?.buys ?? null,
+    sells24h: primary.txns?.h24?.sells ?? null,
+    pairCreatedAt: primary.pairCreatedAt ?? null,
+    info: primary.info || null,
+  };
 }
 
 export async function fetchMarketSnapshot(tokenAddress: string) {
