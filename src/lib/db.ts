@@ -152,6 +152,7 @@ export type FeeEventType =
   | "converted"
   | "xmoney_sent"
   | "xmoney_expired"
+  | "donate_gg_sent"
   | "refunded";
 
 export async function recordFeeEvent(args: {
