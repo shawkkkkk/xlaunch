@@ -71,7 +71,9 @@ export async function signSolanaMessage(message: string) {
   );
   return {
     wallet: publicKey.toBase58(),
-    signature: Buffer.from(signed.signature).toString("base64"),
+    signature: btoa(
+      Array.from(signed.signature, (byte) => String.fromCharCode(byte)).join(""),
+    ),
   };
 }
 
