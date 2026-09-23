@@ -4,6 +4,7 @@ import { reservePost } from "@/lib/db";
 import { parseXPostUrl } from "@/lib/xpost";
 import { resolveFeeDestination, type FeeRoute } from "@/lib/fees";
 import { verifyReservationProof } from "@/lib/auth";
+import { resolveVerifiedXSource } from "@/lib/x-source";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,8 @@ export async function POST(request: NextRequest) {
       wallet,
     });
 
+    const source = await resolveVerifiedXSource(post.id);
+
     const requestedFeeRoute = String(body.feeRoute || "developer") as FeeRoute;
     const forcedHolderRewards =
       (venue === "stonkfun" && body.stonkMode === "reward") ||
@@ -47,12 +50,12 @@ export async function POST(request: NextRequest) {
       route: forcedHolderRewards ? "holder_rewards" : requestedFeeRoute,
       developerWallet: wallet,
       customWallet: String(body.customFeeWallet ?? ""),
-      authorHandle: String(body.authorHandle ?? ""),
+      authorHandle: source.handle,
     });
 
     const metadata = buildLaunchMetadata({
       postId: post.id,
-      postUrl: post.canonicalUrl,
+      postUrl: source.url,
       name: String(body.name ?? ""),
       symbol: String(body.symbol ?? ""),
       description: String(body.description ?? ""),
@@ -91,6 +94,10 @@ export async function POST(request: NextRequest) {
         venue,
         launchConfig,
         feeDestination,
+        sourceAuthor: {
+          handle: source.handle,
+          name: source.authorName,
+        },
       },
     };
 
