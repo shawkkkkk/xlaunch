@@ -1,11 +1,11 @@
-export type FeeRoute = "author_xmoney" | "developer" | "custom" | "holder_rewards";
+export type FeeRoute = "author_xmoney" | "developer" | "custom" | "charity" | "holder_rewards";
 
 export type FeeDestination = {
   route: FeeRoute;
   label: string;
   recipientHandle: string | null;
   recipientWallet: string | null;
-  delivery: "x_money" | "wallet" | "holder_rewards";
+  delivery: "x_money" | "wallet" | "donate_gg" | "holder_rewards";
 };
 
 function cleanHandle(handle?: string) {
@@ -55,6 +55,25 @@ export function resolveFeeDestination(args: {
       recipientHandle: handle,
       recipientWallet: treasuryFor(args.venue),
       delivery: "x_money",
+    };
+  }
+
+  if (args.route === "charity") {
+    if (args.venue !== "pumpfun") {
+      throw new Error("Donate.gg charity routing is currently available on Pump.fun launches.");
+    }
+    const treasury = process.env.XLAUNCH_DONATE_SOL_TREASURY?.trim();
+    if (!treasury) {
+      throw new Error(
+        "Donate.gg charity routing is not configured yet. XLaunch needs its Solana donation treasury.",
+      );
+    }
+    return {
+      route: "charity",
+      label: "Charity via Donate.gg",
+      recipientHandle: null,
+      recipientWallet: treasury,
+      delivery: "donate_gg",
     };
   }
 
