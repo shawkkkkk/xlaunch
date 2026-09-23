@@ -154,7 +154,6 @@ export default function XLaunchApp() {
   const [solWallet, setSolWallet] = useState("");
   const [evmWallet, setEvmWallet] = useState("");
   const [socialCommandId, setSocialCommandId] = useState("");
-  const [socialToken, setSocialToken] = useState("");
   const socialPrefillApplied = useRef(false);
 
   useEffect(() => {
@@ -164,7 +163,6 @@ export default function XLaunchApp() {
     const postId = params.get("post");
     const venueParam = params.get("venue");
     setSocialCommandId(params.get("social") || "");
-    setSocialToken(params.get("socialToken") || "");
     if (!postId || !/^\d+$/.test(postId)) return;
     if (!["stonkfun", "pons", "pumpfun"].includes(String(venueParam))) return;
 
@@ -420,6 +418,7 @@ export default function XLaunchApp() {
         stonkMode,
         pumpHolderReward,
         launchConfig,
+        socialCommandId,
         auth: {
           token: challenge.token,
           signature: proof.signature,
@@ -577,13 +576,12 @@ export default function XLaunchApp() {
       setStatus("Onchain transaction confirmed. Verifying the canonical assignment…");
       await confirmLaunch(result);
 
-      if (socialCommandId && socialToken) {
+      if (socialCommandId) {
         const socialResponse = await fetch("/api/social/complete", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             commandPostId: socialCommandId,
-            token: socialToken,
             postId: resolved.post.id,
             tokenAddress: result.tokenAddress,
             txHash: result.txHash,
