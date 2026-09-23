@@ -151,3 +151,47 @@ export async function getFeeEvents(postId: string) {
     LIMIT 100
   `;
 }
+
+
+export type FeeEventType =
+  | "accrued"
+  | "claimed"
+  | "converted"
+  | "xmoney_sent"
+  | "xmoney_expired"
+  | "refunded";
+
+export async function recordFeeEvent(args: {
+  postId: string;
+  eventType: FeeEventType;
+  asset?: string | null;
+  amount?: string | null;
+  usdAmount?: string | null;
+  chainTxHash?: string | null;
+  proofUrl?: string | null;
+  note?: string | null;
+}) {
+  const rows = await sql()`
+    INSERT INTO xlaunch_fee_events (
+      post_id,
+      event_type,
+      asset,
+      amount,
+      usd_amount,
+      chain_tx_hash,
+      proof_url,
+      note
+    ) VALUES (
+      ${args.postId},
+      ${args.eventType},
+      ${args.asset ?? null},
+      ${args.amount ?? null},
+      ${args.usdAmount ?? null},
+      ${args.chainTxHash ?? null},
+      ${args.proofUrl ?? null},
+      ${args.note ?? null}
+    )
+    RETURNING *
+  `;
+  return rows[0];
+}
