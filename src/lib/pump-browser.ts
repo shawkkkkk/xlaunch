@@ -383,22 +383,46 @@ export async function launchOnPump(input: PumpLaunchInput) {
   }).add(...instructions);
 
   transaction.partialSign(mintKeypair);
-  const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize(), {
-    skipPreflight: false,
-    maxRetries: 3,
-  });
 
-  const confirmation = await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: latest.blockhash,
-      lastValidBlockHeight: latest.lastValidBlockHeight,
-    },
-    "confirmed",
-  );
-  if (confirmation.value.err) {
-    throw new Error("Pump.fun launch transaction failed.");
+  let signed: Transaction;
+  try {
+    signed = await wallet.signTransaction(transaction);
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("Wallet signature failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = false;
+    throw tagged;
+  }
+
+  let signature: string;
+  try {
+    signature = await connection.sendRawTransaction(signed.serialize(), {
+      skipPreflight: false,
+      maxRetries: 3,
+    });
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("Pump.fun broadcast failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+    throw tagged;
+  }
+
+  try {
+    const confirmation = await connection.confirmTransaction(
+      {
+        signature,
+        blockhash: latest.blockhash,
+        lastValidBlockHeight: latest.lastValidBlockHeight,
+      },
+      "confirmed",
+    );
+    if (confirmation.value.err) {
+      const failed = new Error("Pump.fun launch transaction failed.");
+      (failed as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+      throw failed;
+    }
+  } catch (error) {
+    const tagged = error instanceof Error ? error : new Error("Pump.fun confirmation failed.");
+    (tagged as Error & { launchBroadcasted?: boolean }).launchBroadcasted = true;
+    throw tagged;
   }
 
   return {
