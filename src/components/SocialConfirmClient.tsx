@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { connectRobinhoodWallet, signRobinhoodMessage } from "@/lib/pons-browser";
+import { connectSolanaWallet, signSolanaMessage } from "@/lib/pump-browser";
 
 type ConfirmData = {
   state: "ready" | "wallet_link_required" | "already_tokenized";
@@ -56,6 +58,7 @@ export default function SocialConfirmClient({
 }) {
   const [data, setData] = useState<ConfirmData | null>(null);
   const [error, setError] = useState("");
+  const [linking, setLinking] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams({ command: commandPostId, token });
@@ -69,6 +72,66 @@ export default function SocialConfirmClient({
   }, [commandPostId, token]);
 
   const continueUrl = useMemo(() => (data ? launcherUrl(data, token) : "/"), [data, token]);
+
+  async function linkWallet() {
+    if (!data?.command) return;
+    setLinking(true);
+    setError("");
+    try {
+      const venue = data.command.venue;
+      const wallet =
+        venue === "pons"
+          ? await connectRobinhoodWallet()
+          : (await connectSolanaWallet()).toBase58();
+
+      const challengeResponse = await fetch("/api/auth/challenge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          postId: data.command.sourcePostId,
+          venue,
+          wallet,
+        }),
+      });
+      const challenge = await challengeResponse.json();
+      if (!challengeResponse.ok) throw new Error(challenge.error || "Could not create wallet proof.");
+
+      const proof =
+        venue === "pons"
+          ? await signRobinhoodMessage(challenge.message)
+          : await signSolanaMessage(challenge.message);
+
+      const linkResponse = await fetch("/api/social/link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          commandPostId,
+          token,
+          wallet,
+          auth: {
+            token: challenge.token,
+            signature: proof.signature,
+          },
+        }),
+      });
+      const linked = await linkResponse.json();
+      if (!linkResponse.ok) throw new Error(linked.error || "Could not link wallet.");
+
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              state: "ready",
+              linkedWallet: linked.linkedWallet || wallet,
+            }
+          : current,
+      );
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not link wallet.");
+    } finally {
+      setLinking(false);
+    }
+  }
 
   if (error) {
     return <section className="socialConfirm"><div className="socialError">{error}</div></section>;
@@ -115,13 +178,23 @@ export default function SocialConfirmClient({
 
       <div className="socialWallet">
         <span>{data.linkedWallet ? "LINKED WALLET" : "WALLET REQUIRED"}</span>
-        <code>{data.linkedWallet || "Connect and sign on the next screen."}</code>
+        <code>{data.linkedWallet || "Connect once to link this X account."}</code>
+        {!data.linkedWallet && (
+          <button type="button" className="socialLinkWallet" onClick={linkWallet} disabled={linking}>
+            {linking
+              ? "LINKING…"
+              : data.command!.venue === "pons"
+                ? "LINK EVM WALLET"
+                : "LINK SOLANA WALLET"}
+          </button>
+        )}
       </div>
 
       <p className="socialFine">
-        XLaunch does not hold your wallet or sign launches for you. The next screen revalidates
-        live venue settings, reserves the parent X post across all three venues, and asks your
-        wallet to sign the actual launch transaction.
+        XLaunch stores only the public wallet address linked to this verified X user. It never
+        receives a seed phrase or private key. The next screen revalidates live venue settings,
+        reserves the parent X post across all three venues, and asks your wallet to sign the
+        actual launch transaction.
       </p>
 
       <a className="socialPrimary" href={continueUrl}>
