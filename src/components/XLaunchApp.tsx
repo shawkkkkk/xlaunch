@@ -23,6 +23,8 @@ type Registry = {
   chain: "solana" | "robinhood";
   token_address: string | null;
   tx_hash: string | null;
+  reserver_wallet: string;
+  reservation_expires_at: string | null;
 };
 
 type Resolved = {
@@ -453,6 +455,91 @@ export default function XLaunchApp() {
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Wallet connection failed.");
+    }
+  }
+
+  async function releaseReservationForRetry() {
+    if (!resolved?.registry || resolved.registry.status !== "reserved") return;
+    if (pendingLaunch) {
+      setStatus("This launch has an onchain transaction pending verification. Retry verification instead of releasing the reservation.");
+      return;
+    }
+
+    const reservedVenue = resolved.registry.venue;
+    setLaunching(true);
+
+    try {
+      let wallet = "";
+
+      if (reservedVenue === "pons") {
+        if (!evmWalletProvider) {
+          throw new Error("Choose the same EVM wallet that created this reservation.");
+        }
+        wallet = await connectRobinhoodWallet(evmWalletProvider);
+        setEvmWallet(wallet);
+      } else {
+        if (!solWalletProvider) {
+          throw new Error("Choose the same Solana wallet that created this reservation.");
+        }
+        const account = await connectSolanaWallet(solWalletProvider);
+        wallet = account.toBase58();
+        setSolWallet(wallet);
+      }
+
+      const walletMatches =
+        reservedVenue === "pons"
+          ? wallet.toLowerCase() === resolved.registry.reserver_wallet.toLowerCase()
+          : wallet === resolved.registry.reserver_wallet;
+
+      if (!walletMatches) {
+        throw new Error("This reservation belongs to a different wallet. Connect the wallet that originally reserved the post.");
+      }
+
+      setStatus("Sign once to release the failed reservation…");
+      const challengeResponse = await fetch("/api/auth/challenge", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          postId: resolved.post.id,
+          venue: reservedVenue,
+          wallet,
+        }),
+      });
+      const challenge = await challengeResponse.json();
+      if (!challengeResponse.ok) {
+        throw new Error(challenge.error || "Could not create release challenge.");
+      }
+
+      const proof =
+        reservedVenue === "pons"
+          ? await signRobinhoodMessage(challenge.message, evmWalletProvider || undefined)
+          : await signSolanaMessage(challenge.message, solWalletProvider || undefined);
+
+      const response = await fetch("/api/registry/release", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          postId: resolved.post.id,
+          venue: reservedVenue,
+          wallet,
+          auth: {
+            token: challenge.token,
+            signature: proof.signature,
+          },
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Could not release the failed reservation.");
+      }
+
+      setResolved((current) => current ? { ...current, registry: null } : current);
+      setVenue(reservedVenue);
+      setStatus("Reservation released. Review the launch settings and try again.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not release reservation.");
+    } finally {
+      setLaunching(false);
     }
   }
 
@@ -949,6 +1036,24 @@ export default function XLaunchApp() {
                 <small>THIS POST IS ALREADY ONCHAIN</small>
                 <strong>{resolved.registry?.venue.toUpperCase()}</strong>
                 <span>{resolved.registry?.token_address}</span>
+              </div>
+            )}
+
+            {reserved && !pendingLaunch && (
+              <div className="reservationRecovery">
+                <small>FAILED OR ABANDONED LAUNCH?</small>
+                <b>THIS POST IS TEMPORARILY RESERVED</b>
+                <p>
+                  If your wallet shows no successful launch transaction, connect the
+                  same wallet and release this reservation before retrying.
+                </p>
+                <button
+                  type="button"
+                  disabled={launching}
+                  onClick={() => void releaseReservationForRetry()}
+                >
+                  {launching ? "CHECKING…" : "RELEASE RESERVATION & RETRY"}
+                </button>
               </div>
             )}
           </aside>
