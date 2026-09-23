@@ -61,7 +61,15 @@ export function solanaProvider(choice?: SolanaWalletChoice): InjectedSolanaProvi
   if (typeof window === "undefined") throw new Error("Solana wallet is unavailable.");
 
   if (!choice) {
-    throw new Error("Choose a Solana wallet before connecting.");
+    const fallback =
+      window.phantom?.solana ||
+      window.backpack?.solana ||
+      window.solflare ||
+      window.solana;
+    if (!fallback) {
+      throw new Error("No Solana wallet found. Install Phantom, Backpack, or Solflare.");
+    }
+    return fallback;
   }
 
   const wallet =
