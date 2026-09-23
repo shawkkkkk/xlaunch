@@ -1,5 +1,7 @@
 import { Connection } from "@solana/web3.js";
 import { NATIVE_MINT } from "@solana/spl-token";
+
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 import { OnlinePumpSdk } from "@pump-fun/pump-sdk";
 
 function connection() {
@@ -22,7 +24,7 @@ export async function getPumpCapabilities() {
     holderRewardsEnabled: Boolean((global as { isHolderRewardEnabled?: boolean }).isHolderRewardEnabled),
     quotes: supported.map((entry) => ({
       mint: entry.mint.toBase58(),
-      symbol: entry.mint.equals(NATIVE_MINT) ? "SOL" : undefined,
+      symbol: entry.mint.equals(NATIVE_MINT) ? "SOL" : entry.mint.toBase58() === USDC_MINT ? "USDC" : undefined,
       source: entry.source,
       initialVirtualQuoteReserves: entry.initialVirtualQuoteReserves?.toString?.() ?? null,
     })),
