@@ -52,6 +52,37 @@ export async function POST(request: NextRequest) {
       farcaster: String(body.farcaster ?? ""),
     });
 
+    const launchConfig =
+      venue === "stonkfun"
+        ? {
+            quoteMint: String(body.launchConfig?.quoteMint ?? ""),
+            mode: body.launchConfig?.mode === "reward" ? "reward" : "standard",
+            rewardBps: Number(body.launchConfig?.rewardBps ?? 0),
+          }
+        : venue === "pumpfun"
+          ? {
+              quoteMint: String(body.launchConfig?.quoteMint ?? ""),
+              quoteSource: String(body.launchConfig?.quoteSource ?? ""),
+              mayhemMode: Boolean(body.launchConfig?.mayhemMode),
+              holderReward: Boolean(body.launchConfig?.holderReward),
+              creatorFeeBps: Number(body.launchConfig?.creatorFeeBps ?? 0),
+            }
+          : {
+              pairToken: String(body.launchConfig?.pairToken ?? "ETH"),
+              launchConfigId: Number(body.launchConfig?.launchConfigId ?? 0),
+              creatorTaxBps: Number(body.launchConfig?.creatorTaxBps ?? 0),
+              buybackEnabled: Boolean(body.launchConfig?.buybackEnabled),
+            };
+
+    const storedMetadata = {
+      ...metadata,
+      xlaunch: {
+        venue,
+        launchConfig,
+        feeDestination,
+      },
+    };
+
     const record = await reservePost({
       postId: post.id,
       postUrl: metadata.source.postUrl,
@@ -60,7 +91,7 @@ export async function POST(request: NextRequest) {
       wallet,
       tokenName: metadata.name,
       tokenSymbol: metadata.symbol,
-      metadata,
+      metadata: storedMetadata,
       feeRoute: feeDestination.route,
       feeRecipientHandle: feeDestination.recipientHandle,
       feeRecipientWallet: feeDestination.recipientWallet,
