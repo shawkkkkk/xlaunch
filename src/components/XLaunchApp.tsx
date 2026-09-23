@@ -2012,10 +2012,29 @@ export default function XLaunchApp() {
         </div>
       </section>
 
-      <footer>
-        <b>XLAUNCH</b>
-        <span>XLAUNCH.IT</span>
-        <span>NON-CUSTODIAL · CANONICAL PROVENANCE</span>
+      <footer className="xlFooter">
+        <div className="xlFooterBrand">
+          <b>XLAUNCH</b>
+          <span>NON-CUSTODIAL · CANONICAL PROVENANCE</span>
+        </div>
+        <div className="xlFooterLinks">
+          <a href="/docs">DOCS</a>
+          <a
+            href="https://github.com/shawkkkkk/xlaunch"
+            target="_blank"
+            rel="noreferrer"
+          >
+            GITHUB ↗
+          </a>
+          <a href="/risk">RISK</a>
+          <a
+            href="https://x.com/launchonx_"
+            target="_blank"
+            rel="noreferrer"
+          >
+            X ↗
+          </a>
+        </div>
       </footer>
     </main>
   );
