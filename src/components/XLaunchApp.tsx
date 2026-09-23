@@ -212,6 +212,7 @@ export default function XLaunchApp() {
   const [imageMode, setImageMode] = useState<"upload" | "post" | "url">("upload");
   const [manualImageUrl, setManualImageUrl] = useState("");
   const [uploadedImagePreview, setUploadedImagePreview] = useState("");
+  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [imageError, setImageError] = useState("");
   const [draggingImage, setDraggingImage] = useState(false);
@@ -442,6 +443,7 @@ export default function XLaunchApp() {
       setImageError("");
       setManualImageUrl("");
       setUploadedImagePreview("");
+      setUploadedImageUrl("");
       if (postMedia[0]?.url) {
         setImageMode("post");
         setImage(String(postMedia[0].url));
@@ -500,8 +502,10 @@ export default function XLaunchApp() {
         throw new Error(body.error || "Image upload failed.");
       }
 
+      const hostedUrl = String(body.url || "");
+      setUploadedImageUrl(hostedUrl);
       setImageMode("upload");
-      setImage(String(body.url || ""));
+      setImage(hostedUrl);
       setStatus("Token image uploaded and cropped to 1:1.");
     } catch (error) {
       setImageError(error instanceof Error ? error.message : "Image upload failed.");
@@ -1301,7 +1305,7 @@ export default function XLaunchApp() {
                   onClick={() => {
                     setImageMode("upload");
                     setImageError("");
-                    setImage(image && uploadedImagePreview ? image : "");
+                    setImage(uploadedImageUrl);
                   }}
                 >
                   UPLOAD
@@ -1385,6 +1389,7 @@ export default function XLaunchApp() {
                             URL.revokeObjectURL(uploadedImagePreview);
                           }
                           setUploadedImagePreview("");
+                          setUploadedImageUrl("");
                           setImage("");
                           setImageError("");
                         }}
