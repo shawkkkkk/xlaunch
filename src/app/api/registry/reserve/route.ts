@@ -95,12 +95,9 @@ export async function POST(request: NextRequest) {
       feeRoute: feeDestination.route,
       feeRecipientHandle: feeDestination.recipientHandle,
       feeRecipientWallet: feeDestination.recipientWallet,
-      feeRoutingStatus:
-        feeDestination.route === "holder_rewards"
-          ? "onchain_verified"
-          : venue === "pumpfun" && feeDestination.route !== "developer"
-            ? "requested"
-            : "requested",
+      // A user's selection is only a request until the confirmed launch
+      // transaction proves the venue and fee recipient onchain.
+      feeRoutingStatus: "requested",
     });
 
     if (!record) {
