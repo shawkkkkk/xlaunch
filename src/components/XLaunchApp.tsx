@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   connectRobinhoodWallet,
   launchOnPons,
@@ -153,6 +153,42 @@ export default function XLaunchApp() {
   const [launching, setLaunching] = useState(false);
   const [solWallet, setSolWallet] = useState("");
   const [evmWallet, setEvmWallet] = useState("");
+  const socialPrefillApplied = useRef(false);
+
+  useEffect(() => {
+    if (socialPrefillApplied.current || typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const postId = params.get("post");
+    const venueParam = params.get("venue");
+    if (!postId || !/^\d+$/.test(postId)) return;
+    if (!["stonkfun", "pons", "pumpfun"].includes(String(venueParam))) return;
+
+    socialPrefillApplied.current = true;
+    const targetUrl = `https://x.com/i/status/${postId}`;
+    setUrl(targetUrl);
+    setVenue(venueParam as "stonkfun" | "pons" | "pumpfun");
+
+    const route = params.get("feeRoute");
+    if (["author_xmoney", "developer", "custom"].includes(String(route))) {
+      setFeeRoute(route as "author_xmoney" | "developer" | "custom");
+    }
+    if (params.get("customFeeWallet")) {
+      setCustomFeeWallet(params.get("customFeeWallet") || "");
+    }
+    if (params.get("stonkMode") === "reward" || params.get("stonkMode") === "standard") {
+      setStonkMode(params.get("stonkMode") as "standard" | "reward");
+    }
+    const rewardPercent = Number(params.get("rewardPercent") || "");
+    if (Number.isFinite(rewardPercent) && rewardPercent > 0) {
+      setRewardBps(Math.round(rewardPercent * 100));
+    }
+
+    void resolvePost(targetUrl, {
+      name: params.get("name") || undefined,
+      symbol: params.get("symbol") || undefined,
+    });
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -196,7 +232,10 @@ export default function XLaunchApp() {
       .catch(() => setStonkPricing(null));
   }, [stonkPair]);
 
-  async function resolvePost() {
+  async function resolvePost(
+    overrideUrl?: string,
+    prefill?: { name?: string; symbol?: string },
+  ) {
     setLoading(true);
     setResolveError("");
     setResolved(null);
@@ -206,7 +245,7 @@ export default function XLaunchApp() {
       const response = await fetch("/api/post/resolve", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: overrideUrl || url }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Could not resolve post.");
@@ -214,8 +253,13 @@ export default function XLaunchApp() {
       setResolved(body);
       const text = String(body.post.text || "");
       const firstSentence = text.replace(/https?:\/\/\S+/g, "").trim().split(/[.!?\n]/)[0].slice(0, 48);
-      setName(firstSentence || body.post.authorName || "X Post");
-      setSymbol(suggestedTicker(body.post.handle, text));
+      setName(prefill?.name || firstSentence || body.post.authorName || "X Post");
+      setSymbol(
+        (prefill?.symbol || suggestedTicker(body.post.handle, text))
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "")
+          .slice(0, 12),
+      );
       setDescription(text.slice(0, 500));
     } catch (error) {
       setResolveError(error instanceof Error ? error.message : "Could not resolve post.");
@@ -565,9 +609,9 @@ export default function XLaunchApp() {
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="Paste an X post link"
-            onKeyDown={(event) => event.key === "Enter" && resolvePost()}
+            onKeyDown={(event) => event.key === "Enter" && void resolvePost()}
           />
-          <button type="button" onClick={resolvePost} disabled={loading}>
+          <button type="button" onClick={() => void resolvePost()} disabled={loading}>
             {loading ? "CHECKING…" : "TOKENIZE →"}
           </button>
         </div>
