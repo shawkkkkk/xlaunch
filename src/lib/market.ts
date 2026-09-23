@@ -5,49 +5,6 @@ type DexPair = {
   dexId?: string;
   pairAddress?: string;
   baseToken?: { address?: string; name?: string; symbol?: string };
-  quoteToken?: { address?: string; name?: string; symbol?: string };
-  priceNative?: string;
-  priceUsd?: string | null;
-  liquidity?: { usd?: number; base?: number; quote?: number };
-  fdv?: number | null;
-  marketCap?: number | null;
-  volume?: { h24?: number; h6?: number; h1?: number; m5?: number };
-  priceChange?: { h24?: number; h6?: number; h1?: number; m5?: number };
-  txns?: {
-    h24?: { buys?: number; sells?: number };
-    h6?: { buys?: number; sells?: number };
-    h1?: { buys?: number; sells?: number };
-    m5?: { buys?: number; sells?: number };
-  };
-  pairCreatedAt?: number | null;
-  url?: string;
-  info?: {
-    imageUrl?: string;
-    websites?: Array<{ url?: string }>;
-    socials?: Array<{ platform?: string; handle?: string }>;
-  };
-};
-  quoteToken?: { address?: string };
-  priceUsd?: string;
-  liquidity?: { usd?: number };
-  fdv?: number;
-  marketCap?: number;
-  volume?: { h24?: number };
-  priceChange?: { h24?: number };
-  txns?: { h24?: { buys?: number; sells?: number } };
-  volume?: { h24?: number };
-  priceChange?: { h24?: number };
-  liquidity?: { usd?: number };
-  fdv?: number;
-  marketCap?: number;
-  pairCreatedAt?: number | null;
-  url?: string;
-  info?: {
-    imageUrl?: string;
-    websites?: Array<{ url?: string }>;
-    socials?: Array<{ platform?: string; handle?: string }>;
-  };
-};
 
 function sameAddress(a: string | undefined, b: string) {
   if (!a) return false;
