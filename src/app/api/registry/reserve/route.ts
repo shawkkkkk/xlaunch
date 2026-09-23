@@ -5,6 +5,7 @@ import { parseXPostUrl } from "@/lib/xpost";
 import { resolveFeeDestination, type FeeRoute } from "@/lib/fees";
 import { verifyReservationProof } from "@/lib/auth";
 import { resolveVerifiedXSource } from "@/lib/x-source";
+import { createDonateCharityConfig } from "@/lib/donate";
 
 export const runtime = "nodejs";
 
@@ -53,6 +54,11 @@ export async function POST(request: NextRequest) {
       authorHandle: source.handle,
     });
 
+    const donationConfig =
+      feeDestination.route === "charity"
+        ? await createDonateCharityConfig(String(body.charityId ?? ""))
+        : null;
+
     const metadata = buildLaunchMetadata({
       postId: post.id,
       postUrl: source.url,
@@ -98,6 +104,20 @@ export async function POST(request: NextRequest) {
           handle: source.handle,
           name: source.authorName,
         },
+        donationConfig: donationConfig
+          ? {
+              configId: donationConfig.configId,
+              feeBps: donationConfig.feeBps,
+              charity: {
+                id: donationConfig.charity.id,
+                slug: donationConfig.charity.slug,
+                name: donationConfig.charity.name,
+                logo: donationConfig.charity.logo,
+                website: donationConfig.charity.website,
+                status: donationConfig.charity.status,
+              },
+            }
+          : null,
       },
     };
 
