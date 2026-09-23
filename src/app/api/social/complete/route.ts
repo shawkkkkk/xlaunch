@@ -4,7 +4,7 @@ import {
   getSocialCommand,
   updateSocialCommandStatus,
 } from "@/lib/db";
-import { verifySocialConfirmationToken } from "@/lib/social-token";
+import { readXSession } from "@/lib/x-oauth";
 
 export const runtime = "nodejs";
 
@@ -12,12 +12,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const commandPostId = String(body.commandPostId || "");
-    const token = String(body.token || "");
     const postId = String(body.postId || "");
     const tokenAddress = String(body.tokenAddress || "");
     const txHash = String(body.txHash || "");
 
-    if (!/^\d+$/.test(commandPostId) || !/^\d+$/.test(postId) || !token) {
+    if (!/^\d+$/.test(commandPostId) || !/^\d+$/.test(postId)) {
       throw new Error("Invalid social launch completion.");
     }
 
@@ -25,8 +24,12 @@ export async function POST(request: NextRequest) {
     if (!command) {
       return NextResponse.json({ error: "Unknown social launch command." }, { status: 404 });
     }
-    if (!verifySocialConfirmationToken(token, String(command.confirmation_token_hash))) {
-      return NextResponse.json({ error: "Invalid social confirmation token." }, { status: 403 });
+    const session = readXSession(request.cookies.get("xlaunch_x_session")?.value);
+    if (!session || String(session.xUserId) !== String(command.x_user_id)) {
+      return NextResponse.json(
+        { error: "The X account that wrote this command must be signed in." },
+        { status: 403 },
+      );
     }
     if (String(command.source_post_id) !== postId) {
       throw new Error("Social command source does not match the launched post.");
