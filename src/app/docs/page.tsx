@@ -7,7 +7,7 @@ const sections = [
   {
     id: "launch",
     title: "LAUNCHING",
-    body: "Paste an X post or launch from an @launchonx reply. Choose Pump.fun, StonkFun or Pons, configure the venue's available options, review the canonical source and sign the actual transaction with your wallet.",
+    body: "Paste an X post or launch from an @launchedonx reply. Choose Pump.fun, StonkFun or Pons, configure the venue's available options, review the canonical source and sign the actual transaction with your wallet.",
   },
   {
     id: "canonical",
@@ -22,7 +22,7 @@ const sections = [
   {
     id: "social",
     title: "X BOT",
-    body: "Reply directly under the source X post and mention @launchonx with an explicit venue. The parent post becomes the source automatically. X OAuth and wallet signatures protect social launches from command hijacking.",
+    body: "Reply directly under the source X post and mention @launchedonx with an explicit venue. The parent post becomes the source automatically. X OAuth and wallet signatures protect social launches from command hijacking.",
   },
   {
     id: "profile",
