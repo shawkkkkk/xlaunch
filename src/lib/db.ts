@@ -320,3 +320,18 @@ export async function setBotState(key: string, value: string) {
   `;
   return rows[0];
 }
+
+
+export async function setSocialCommandReply(args: {
+  commandPostId: string;
+  replyPostId: string;
+}) {
+  const rows = await sql()`
+    UPDATE xlaunch_social_commands
+    SET reply_post_id = ${args.replyPostId},
+        updated_at = now()
+    WHERE command_post_id = ${args.commandPostId}
+    RETURNING *
+  `;
+  return rows[0] ?? null;
+}
