@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS xlaunch_social_accounts (
   CHECK (solana_wallet IS NOT NULL OR evm_wallet IS NOT NULL)
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS xlaunch_social_accounts_handle_idx
+CREATE INDEX IF NOT EXISTS xlaunch_social_accounts_handle_idx
   ON xlaunch_social_accounts (lower(x_handle));
 
 CREATE TABLE IF NOT EXISTS xlaunch_social_commands (
