@@ -60,6 +60,21 @@ function metadataUri(postId: string) {
   return `${base}/api/token-metadata/${postId}`;
 }
 
+function parseDecimalAmount(value: string, decimals: number) {
+  const trimmed = value.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    throw new Error("Opening buy must be a positive decimal amount.");
+  }
+  const [whole, fraction = ""] = trimmed.split(".");
+  if (fraction.length > decimals) {
+    throw new Error(`Opening buy supports at most ${decimals} decimal places for this quote asset.`);
+  }
+  const raw =
+    whole.replace(/^0+(?=\d)/, "") +
+    fraction.padEnd(decimals, "0");
+  return new BN(raw.replace(/^0+/, "") || "0");
+}
+
 export type PumpLaunchInput = {
   postId: string;
   metadata: {
@@ -126,18 +141,12 @@ export async function launchOnPump(input: PumpLaunchInput) {
     ...(creatorFeeBps > 0 ? { creatorFeeBps: new BN(creatorFeeBps) } : {}),
   };
 
-  const opening = Number(input.openingBuy || "0");
+  const openingText = (input.openingBuy || "0").trim();
+  const decimals = Number(quote.decimals);
+  const quoteAmount = parseDecimalAmount(openingText || "0", decimals);
   let instructions;
 
-  if (opening > 0) {
-    if (!Number.isFinite(opening) || opening <= 0) {
-      throw new Error("Opening buy must be a positive number.");
-    }
-
-    const decimals = Number(quote.decimals);
-    const quoteAmount = new BN(
-      Math.round(opening * 10 ** decimals).toString(),
-    );
+  if (quoteAmount.gt(new BN(0))) {
 
     const amount = getBuyTokenAmountFromSolAmount({
       global,
