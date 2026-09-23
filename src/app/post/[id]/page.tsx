@@ -38,6 +38,10 @@ export default async function PostTokenPage({
     (event: any) => event.event_type === "xmoney_sent",
   );
   const lastXMoneyPayout = xMoneyPayouts[0] as any | undefined;
+  const donatePayouts = events.filter(
+    (event: any) => event.event_type === "donate_gg_sent",
+  );
+  const lastDonatePayout = donatePayouts[0] as any | undefined;
   const metadata = record.metadata as {
     description?: string;
     image?: string;
@@ -119,6 +123,16 @@ export default async function PostTokenPage({
                 <b>{donationConfig.charity.status?.replaceAll("_", " ") || "—"}</b>
               </div>
             </>
+          )}
+          {record.fee_route === "charity" && (
+            <div className="feeLine">
+              <span>DONATE.GG PAYOUT</span>
+              <b>
+                {lastDonatePayout
+                  ? "SENT · " + new Date(lastDonatePayout.created_at).toLocaleDateString()
+                  : "NOT YET RECORDED"}
+              </b>
+            </div>
           )}
           {record.fee_route === "author_xmoney" && (
             <div className="feeLine">
