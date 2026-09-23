@@ -85,3 +85,18 @@ Reply to the exact post you want to tokenize and mention the XLaunch account wit
 The reply's parent X status id is the canonical source. The command cannot substitute another source post. Social commands are parsed server-side, but launching remains disabled until the command author has an authenticated linked wallet and the X ingestion service verifies the mention/reply relationship.
 
 The same one-post/one-token invariant applies across web and social surfaces.
+
+
+### Bot security model
+
+The bot confirmation URL is public and is **not** an authorization credential.
+
+Before a social command can reserve its parent post, XLaunch requires:
+
+1. X OAuth 2.0 Authorization Code + PKCE.
+2. The authenticated X user id must equal the author id of the command post.
+3. A wallet message signature proving control of the linked Solana or EVM wallet.
+4. The linked wallet, parent post id and requested venue must all match again at reservation time.
+5. The actual launch transaction is still signed by the wallet and verified onchain before the canonical registry becomes live.
+
+The mention worker is disabled until `X_BOT_USER_ID`, a user-context `X_BOT_ACCESS_TOKEN`, and a worker secret are configured.
