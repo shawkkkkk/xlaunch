@@ -100,3 +100,19 @@ Before a social command can reserve its parent post, XLaunch requires:
 5. The actual launch transaction is still signed by the wallet and verified onchain before the canonical registry becomes live.
 
 The mention worker is disabled until `X_BOT_USER_ID`, a user-context `X_BOT_ACCESS_TOKEN`, and a worker secret are configured.
+
+
+### X automation identity
+
+The production bot account is **@xlaunchit**.
+
+The human operator account is **@ShayanelH**. X's automated-account label should be enabled on @xlaunchit and connected to @ShayanelH so the public profile identifies the bot as automated and names its operator.
+
+This relationship is configured in X account settings, not by XLaunch code. XLaunch stores the handles as deployment configuration for consistency, but must never claim the platform label is active until it is visibly enabled on X.
+
+Public bot behavior:
+
+- Users reply under the exact source post and tag @xlaunchit.
+- The parent post id becomes the canonical XLaunch source.
+- @xlaunchit replies with the verification/signing link.
+- After onchain confirmation, @xlaunchit replies again with venue, ticker, contract address and the canonical XLaunch page.
