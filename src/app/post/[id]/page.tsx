@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getFeeEvents, getRegistryRecord } from "@/lib/db";
+import { getFeeEvents, getMarketSnapshot, getRegistryRecord } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +63,22 @@ function feeRouteLabel(record: Awaited<ReturnType<typeof getRegistryRecord>>) {
   return "Developer wallet";
 }
 
+function compactUsd(value: unknown) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  if (number >= 1_000_000_000) return "$" + (number / 1_000_000_000).toFixed(2) + "B";
+  if (number >= 1_000_000) return "$" + (number / 1_000_000).toFixed(2) + "M";
+  if (number >= 1_000) return "$" + (number / 1_000).toFixed(1) + "K";
+  if (number > 0 && number < 0.01) return "$" + number.toPrecision(4);
+  return "$" + number.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function percent(value: unknown) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return (number >= 0 ? "+" : "") + number.toFixed(1) + "%";
+}
+
 function statusLabel(status: string) {
   if (status === "onchain_verified") return "ONCHAIN VERIFIED";
   if (status === "not_applicable") return "NOT APPLICABLE";
@@ -80,7 +96,10 @@ export default async function PostTokenPage({
   const record = await getRegistryRecord(id).catch(() => null);
   if (!record) notFound();
 
-  const events = await getFeeEvents(id).catch(() => []);
+  const [events, market] = await Promise.all([
+    getFeeEvents(id).catch(() => []),
+    getMarketSnapshot(id).catch(() => null),
+  ]);
   const xMoneyPayouts = events.filter(
     (event: any) => event.event_type === "xmoney_sent",
   );
@@ -128,6 +147,33 @@ export default async function PostTokenPage({
           <span>{record.status.toUpperCase()}</span>
         </div>
       </section>
+
+      {market && (
+        <section className="tokenMarket">
+          <div>
+            <span>PRICE</span>
+            <b>{compactUsd((market as any).price_usd)}</b>
+          </div>
+          <div>
+            <span>MARKET CAP</span>
+            <b>{compactUsd((market as any).market_cap_usd)}</b>
+          </div>
+          <div>
+            <span>24H VOLUME</span>
+            <b>{compactUsd((market as any).volume_24h_usd)}</b>
+          </div>
+          <div>
+            <span>24H</span>
+            <b className={Number((market as any).price_change_24h_pct) >= 0 ? "up" : "down"}>
+              {percent((market as any).price_change_24h_pct)}
+            </b>
+          </div>
+          <div>
+            <span>LIQUIDITY</span>
+            <b>{compactUsd((market as any).liquidity_usd)}</b>
+          </div>
+        </section>
+      )}
 
       <section className="sourceDisclosure">
         <b>SOURCE ≠ ENDORSEMENT</b>
