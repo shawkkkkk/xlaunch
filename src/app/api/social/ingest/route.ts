@@ -49,7 +49,11 @@ export async function POST(request: NextRequest) {
         ? Boolean((account as any)?.evm_wallet)
         : Boolean((account as any)?.solana_wallet);
 
-    const { token, hash } = createSocialConfirmationToken();
+    const { token, hash } = createSocialConfirmationToken({
+      commandPostId,
+      sourcePostId,
+      xUserId,
+    });
     await upsertSocialCommand({
       commandPostId,
       sourcePostId,
