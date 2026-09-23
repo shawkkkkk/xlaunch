@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { buildLaunchMetadata, canonicalPostPage } from "../src/lib/metadata";
 
 describe("launch metadata", () => {
-  it("defaults website to launchonx.net, not the provenance page", () => {
+  it("defaults website to the canonical XLaunch token page", () => {
     const result = buildLaunchMetadata({ postId: "123", name: "Hello", symbol: "hi" });
-    expect(result.socials.website).toBe("https://launchonx.net");
+    expect(result.socials.website).toBe("https://launchonx.net/post/123");
     expect(result.source.registry).toBe(canonicalPostPage("123"));
     expect(result.source.registry).toBe("https://launchonx.net/post/123");
   });
