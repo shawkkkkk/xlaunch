@@ -52,7 +52,7 @@ export async function reservePost(args: {
   feeRoutingStatus?: "requested" | "onchain_verified" | "not_applicable";
   ttlMinutes?: number;
 }) {
-  const ttl = Math.max(5, Math.min(args.ttlMinutes ?? 30, 30));
+  const ttl = Math.max(1, Math.min(args.ttlMinutes ?? 5, 5));
   const rows = await sql()`
     INSERT INTO xlaunch_posts (
       post_id, source_key, post_url, status, venue, chain, reserver_wallet,
